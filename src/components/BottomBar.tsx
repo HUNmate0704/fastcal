@@ -7,13 +7,25 @@ const GOAL = 2200;
 export function BottomBar({
   totals,
   bottomInset = 0,
+  placement = 'bottom',
 }: {
   totals: DayTotals;
   bottomInset?: number;
+  placement?: 'top' | 'bottom';
 }) {
   const pct = Math.min(100, Math.round((totals.kcal / GOAL) * 100));
+  const pad =
+    placement === 'top'
+      ? { paddingTop: 6, paddingBottom: 10 }
+      : { paddingBottom: 10 + bottomInset };
   return (
-    <View style={[styles.wrap, { paddingBottom: 10 + bottomInset }]}>
+    <View
+      style={[
+        styles.wrap,
+        placement === 'top' ? styles.wrapTop : null,
+        pad,
+      ]}
+    >
       <View style={styles.row}>
         <Text style={styles.kcal}>{totals.kcal}</Text>
         <Text style={styles.kcalUnit}> / {GOAL} kcal</Text>
@@ -49,8 +61,13 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 0,
   },
+  wrapTop: {
+    borderTopWidth: 0,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#2a3542',
+  },
   row: { flexDirection: 'row', alignItems: 'baseline' },
-  kcal: { color: '#e8eef4', fontSize: 28, fontWeight: '700', letterSpacing: -0.5 },
+  kcal: { color: '#e8eef4', fontSize: 24, fontWeight: '700', letterSpacing: -0.5 },
   kcalUnit: { color: '#8b9aab', fontSize: 14, marginLeft: 4 },
   barBg: {
     height: 4,

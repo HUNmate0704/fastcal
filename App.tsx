@@ -131,7 +131,10 @@ export default function App() {
   function shiftDay(delta: number) {
     const d = new Date(date + 'T12:00:00');
     d.setDate(d.getDate() + delta);
-    setDate(d.toISOString().slice(0, 10));
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    setDate(`${y}-${m}-${day}`);
   }
 
   async function copyYday() {
@@ -179,103 +182,113 @@ export default function App() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={8}
       >
-      <View style={styles.head}>
-        <Pressable onPress={() => shiftDay(-1)} hitSlop={12}>
-          <Text style={styles.nav}>‹</Text>
-        </Pressable>
-        <View style={{ alignItems: 'center' }}>
-          <Text style={styles.title}>Fastcal</Text>
-          <Text style={styles.date}>{dayLabel(date)}</Text>
+        {/* TOP: info */}
+        <View style={styles.head}>
+          <Pressable onPress={() => shiftDay(-1)} hitSlop={12}>
+            <Text style={styles.nav}>‹</Text>
+          </Pressable>
+          <View style={{ alignItems: 'center' }}>
+            <Text style={styles.title}>Fastcal</Text>
+            <Text style={styles.date}>{dayLabel(date)}</Text>
+          </View>
+          <Pressable onPress={() => shiftDay(1)} hitSlop={12}>
+            <Text style={styles.nav}>›</Text>
+          </Pressable>
         </View>
-        <Pressable onPress={() => shiftDay(1)} hitSlop={12}>
-          <Text style={styles.nav}>›</Text>
-        </Pressable>
-      </View>
+        <BottomBar totals={totals} placement="top" />
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.mealTabsScroll}
-        contentContainerStyle={styles.mealTabs}
-      >
-        {MEALS.map((m) => (
-          <Pressable
-            key={m}
-            onPress={() => setMeal(m)}
-            style={[styles.tab, meal === m && styles.tabOn]}
+        {/* MID: meal tabs + diary */}
+        <View style={styles.mealTabsWrap}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.mealTabsScroll}
+            contentContainerStyle={styles.mealTabs}
           >
-            <Text style={[styles.tabText, meal === m && styles.tabTextOn]}>
-              {MEAL_LABEL[m]}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-
-      <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 24 }}>
-        <QuickAdd
-          meal={meal}
-          yesterday={yesterday}
-          frequent={frequent}
-          recent={recent}
-          onYesterday={addYesterday}
-          onFood={addFood}
-        />
-
-        <View style={styles.actions}>
-          <View style={styles.actionRow}>
-            <Pressable
-              style={[styles.primary, styles.actionHalf]}
-              onPress={() => {
-                setScanDirect(false);
-                setSearchOpen(true);
-              }}
-            >
-              <Text style={styles.primaryText}>+ Keresés</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.scanBtn, styles.actionHalf]}
-              onPress={() => {
-                setScanDirect(true);
-                setSearchOpen(true);
-              }}
-            >
-              <Text style={styles.primaryText}>Scan</Text>
-            </Pressable>
-          </View>
-          <Pressable style={styles.ghost} onPress={copyYday}>
-            <Text style={styles.ghostText}>Tegnapi nap másolása</Text>
-          </Pressable>
+            {MEALS.map((m) => (
+              <Pressable
+                key={m}
+                onPress={() => setMeal(m)}
+                style={[styles.tab, meal === m && styles.tabOn]}
+              >
+                <Text style={[styles.tabText, meal === m && styles.tabTextOn]}>
+                  {MEAL_LABEL[m]}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
         </View>
 
-        {MEALS.map((m) => (
-          <View key={m} style={styles.section}>
-            <Text style={styles.sectionTitle}>{MEAL_LABEL[m]}</Text>
-            {byMeal[m].length === 0 ? (
-              <Text style={styles.empty}>Üres</Text>
-            ) : (
-              byMeal[m].map((e) => (
-                <EntryRow
-                  key={e.id}
-                  entry={e}
-                  autoFocusGrams={focusEntryId === e.id}
-                  onAutoFocusDone={() => setFocusEntryId(null)}
-                  onGrams={async (id, g) => {
-                    const updated = await api.updateGrams(id, g);
-                    // local patch — full reload would steal keyboard focus
-                    setEntries((prev) => prev.map((x) => (x.id === id ? updated : x)));
-                  }}
-                  onRemove={async (id) => {
-                    await api.removeEntry(id);
-                    await reload();
-                  }}
-                />
-              ))
-            )}
-          </View>
-        ))}
-      </ScrollView>
+        <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 16 }}>
+          {MEALS.map((m) => (
+            <View
+              key={m}
+              style={[styles.section, meal === m && styles.sectionOn]}
+            >
+              <Text style={[styles.sectionTitle, meal === m && styles.sectionTitleOn]}>
+                {MEAL_LABEL[m]}
+                {meal === m ? ' · aktív' : ''}
+              </Text>
+              {byMeal[m].length === 0 ? (
+                <Text style={styles.empty}>Üres</Text>
+              ) : (
+                byMeal[m].map((e) => (
+                  <EntryRow
+                    key={e.id}
+                    entry={e}
+                    autoFocusGrams={focusEntryId === e.id}
+                    onAutoFocusDone={() => setFocusEntryId(null)}
+                    onGrams={async (id, g) => {
+                      const updated = await api.updateGrams(id, g);
+                      setEntries((prev) => prev.map((x) => (x.id === id ? updated : x)));
+                    }}
+                    onRemove={async (id) => {
+                      await api.removeEntry(id);
+                      await reload();
+                    }}
+                  />
+                ))
+              )}
+            </View>
+          ))}
+        </ScrollView>
 
-      <BottomBar totals={totals} bottomInset={insets.bottom} />
+        {/* BOTTOM: thumb-zone actions */}
+        <View style={[styles.dock, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+          <QuickAdd
+            meal={meal}
+            yesterday={yesterday}
+            frequent={frequent}
+            recent={recent}
+            onYesterday={addYesterday}
+            onFood={addFood}
+          />
+          <View style={styles.actions}>
+            <View style={styles.actionRow}>
+              <Pressable
+                style={[styles.primary, styles.actionHalf]}
+                onPress={() => {
+                  setScanDirect(false);
+                  setSearchOpen(true);
+                }}
+              >
+                <Text style={styles.primaryText}>+ Keresés</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.scanBtn, styles.actionHalf]}
+                onPress={() => {
+                  setScanDirect(true);
+                  setSearchOpen(true);
+                }}
+              >
+                <Text style={styles.primaryText}>Scan</Text>
+              </Pressable>
+            </View>
+            <Pressable style={styles.ghost} onPress={copyYday}>
+              <Text style={styles.ghostText}>Tegnapi nap másolása</Text>
+            </Pressable>
+          </View>
+        </View>
       </KeyboardAvoidingView>
 
       <SearchSheet
@@ -308,27 +321,45 @@ const styles = StyleSheet.create({
   title: { color: '#e8eef4', fontSize: 18, fontWeight: '700' },
   date: { color: '#8b9aab', fontSize: 13, marginTop: 2 },
   nav: { color: '#3d9cf0', fontSize: 32, fontWeight: '300', paddingHorizontal: 8 },
-  mealTabsScroll: { marginBottom: 8, flexGrow: 0 },
+  mealTabsWrap: {
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#2a3542',
+  },
+  mealTabsScroll: { flexGrow: 0 },
   mealTabs: {
     flexDirection: 'row',
     paddingHorizontal: 12,
     paddingRight: 20,
-    gap: 6,
+    gap: 8,
     alignItems: 'center',
+    justifyContent: 'center',
+    flexGrow: 1,
   },
   tab: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     backgroundColor: '#1a222c',
     alignItems: 'center',
-    minWidth: 84,
+    minWidth: 88,
   },
-  tabOn: { backgroundColor: '#243040', borderWidth: 1, borderColor: '#3d9cf0' },
-  tabText: { color: '#8b9aab', fontSize: 12, fontWeight: '600' },
-  tabTextOn: { color: '#e8eef4' },
+  tabOn: {
+    backgroundColor: '#3d9cf0',
+    borderWidth: 0,
+  },
+  tabText: { color: '#8b9aab', fontSize: 13, fontWeight: '600' },
+  tabTextOn: { color: '#061018', fontWeight: '800' },
   body: { flex: 1, paddingHorizontal: 16 },
-  actions: { gap: 8, marginBottom: 16 },
+  dock: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#2a3542',
+    backgroundColor: '#121820',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    gap: 4,
+  },
+  actions: { gap: 8 },
   actionRow: { flexDirection: 'row', gap: 8 },
   actionHalf: { flex: 1 },
   primary: {
@@ -352,7 +383,12 @@ const styles = StyleSheet.create({
     borderColor: '#2a3542',
   },
   ghostText: { color: '#8b9aab', fontWeight: '600' },
-  section: { marginBottom: 16 },
+  section: { marginBottom: 14, padding: 8, borderRadius: 12 },
+  sectionOn: {
+    backgroundColor: '#16202a',
+    borderWidth: 1,
+    borderColor: '#3d9cf0',
+  },
   sectionTitle: {
     color: '#8b9aab',
     fontSize: 12,
@@ -361,5 +397,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 4,
   },
+  sectionTitleOn: { color: '#3d9cf0' },
   empty: { color: '#5a6a7a', fontSize: 13, paddingVertical: 8 },
 });
