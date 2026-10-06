@@ -1,0 +1,737 @@
+{
+  "_comment": "Offline HU chain seed. Per-100g derived from official portion tables. 1 adag = 1 db = servingGrams. McD HU omitted (site blocked); add later from tápérték kalkulátor.",
+  "_sources": [
+    {
+      "brand": "KFC",
+      "url": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+      "asOf": "2026-09-22"
+    },
+    {
+      "brand": "Burger King",
+      "url": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+      "asOf": "2026-09-01"
+    }
+  ],
+  "items": [
+    {
+      "id": "hu-kfc-zinger",
+      "name": "KFC Zinger",
+      "brand": "KFC",
+      "kcal100": 261.8,
+      "protein100": 14.6,
+      "fat100": 13.0,
+      "carbs100": 21.3,
+      "servingGrams": 170,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+        "asOf": "2026-09-22",
+        "portionKcal": 445,
+        "portionGrams": 170
+      }
+    },
+    {
+      "id": "hu-kfc-dupla-zinger",
+      "name": "KFC Dupla Zinger",
+      "brand": "KFC",
+      "kcal100": 245.8,
+      "protein100": 17.1,
+      "fat100": 12.1,
+      "carbs100": 17.1,
+      "servingGrams": 240,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+        "asOf": "2026-09-22",
+        "portionKcal": 590,
+        "portionGrams": 240
+      }
+    },
+    {
+      "id": "hu-kfc-grander",
+      "name": "KFC Grander",
+      "brand": "KFC",
+      "kcal100": 252.0,
+      "protein100": 12.3,
+      "fat100": 12.7,
+      "carbs100": 20.3,
+      "servingGrams": 300,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+        "asOf": "2026-09-22",
+        "portionKcal": 756,
+        "portionGrams": 300
+      }
+    },
+    {
+      "id": "hu-kfc-cheeseburger",
+      "name": "KFC Sajtburger",
+      "brand": "KFC",
+      "kcal100": 260.8,
+      "protein100": 12.8,
+      "fat100": 12.0,
+      "carbs100": 25.6,
+      "servingGrams": 125,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+        "asOf": "2026-09-22",
+        "portionKcal": 326,
+        "portionGrams": 125
+      }
+    },
+    {
+      "id": "hu-kfc-twister",
+      "name": "KFC Twister Classic",
+      "brand": "KFC",
+      "kcal100": 238.9,
+      "protein100": 8.6,
+      "fat100": 12.4,
+      "carbs100": 22.8,
+      "servingGrams": 226,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+        "asOf": "2026-09-22",
+        "portionKcal": 540,
+        "portionGrams": 226
+      }
+    },
+    {
+      "id": "hu-kfc-qurrito",
+      "name": "KFC Qurrito",
+      "brand": "KFC",
+      "kcal100": 300.9,
+      "protein100": 15.2,
+      "fat100": 16.5,
+      "carbs100": 23.0,
+      "servingGrams": 230,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+        "asOf": "2026-09-22",
+        "portionKcal": 692,
+        "portionGrams": 230
+      }
+    },
+    {
+      "id": "hu-kfc-drumstick",
+      "name": "KFC Alsócomb",
+      "brand": "KFC",
+      "kcal100": 230.4,
+      "protein100": 20.3,
+      "fat100": 13.2,
+      "carbs100": 6.8,
+      "servingGrams": 69,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+        "asOf": "2026-09-22",
+        "portionKcal": 159,
+        "portionGrams": 69
+      }
+    },
+    {
+      "id": "hu-kfc-breast",
+      "name": "KFC Mell",
+      "brand": "KFC",
+      "kcal100": 236.0,
+      "protein100": 25.4,
+      "fat100": 11.5,
+      "carbs100": 7.8,
+      "servingGrams": 100,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+        "asOf": "2026-09-22",
+        "portionKcal": 236,
+        "portionGrams": 100
+      }
+    },
+    {
+      "id": "hu-kfc-thigh",
+      "name": "KFC Felsőcomb",
+      "brand": "KFC",
+      "kcal100": 271.2,
+      "protein100": 19.6,
+      "fat100": 17.7,
+      "carbs100": 8.4,
+      "servingGrams": 111,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+        "asOf": "2026-09-22",
+        "portionKcal": 301,
+        "portionGrams": 111
+      }
+    },
+    {
+      "id": "hu-kfc-wing",
+      "name": "KFC Kentucky szárny",
+      "brand": "KFC",
+      "kcal100": 284.6,
+      "protein100": 22.3,
+      "fat100": 17.2,
+      "carbs100": 10.0,
+      "servingGrams": 65,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+        "asOf": "2026-09-22",
+        "portionKcal": 185,
+        "portionGrams": 65
+      }
+    },
+    {
+      "id": "hu-kfc-hotshots",
+      "name": "KFC Hot Shots Falatok",
+      "brand": "KFC",
+      "kcal100": 323.3,
+      "protein100": 18.9,
+      "fat100": 20.0,
+      "carbs100": 15.6,
+      "servingGrams": 90,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+        "asOf": "2026-09-22",
+        "portionKcal": 291,
+        "portionGrams": 90
+      }
+    },
+    {
+      "id": "hu-kfc-hotwings",
+      "name": "KFC Hot Wings",
+      "brand": "KFC",
+      "kcal100": 316.7,
+      "protein100": 19.4,
+      "fat100": 20.6,
+      "carbs100": 13.9,
+      "servingGrams": 36,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+        "asOf": "2026-09-22",
+        "portionKcal": 114,
+        "portionGrams": 36
+      }
+    },
+    {
+      "id": "hu-kfc-fries-s",
+      "name": "KFC Kis sültburgonya",
+      "brand": "KFC",
+      "kcal100": 255.7,
+      "protein100": 3.9,
+      "fat100": 11.0,
+      "carbs100": 33.9,
+      "servingGrams": 70,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+        "asOf": "2026-09-22",
+        "portionKcal": 179,
+        "portionGrams": 70
+      }
+    },
+    {
+      "id": "hu-kfc-fries-m",
+      "name": "KFC Normál sültburgonya",
+      "brand": "KFC",
+      "kcal100": 255.2,
+      "protein100": 3.9,
+      "fat100": 11.0,
+      "carbs100": 33.8,
+      "servingGrams": 105,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+        "asOf": "2026-09-22",
+        "portionKcal": 268,
+        "portionGrams": 105
+      }
+    },
+    {
+      "id": "hu-kfc-fries-bucket",
+      "name": "KFC Sültburgonya kosár",
+      "brand": "KFC",
+      "kcal100": 255.2,
+      "protein100": 3.8,
+      "fat100": 11.0,
+      "carbs100": 33.8,
+      "servingGrams": 210,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+        "asOf": "2026-09-22",
+        "portionKcal": 536,
+        "portionGrams": 210
+      }
+    },
+    {
+      "id": "hu-kfc-onion-4",
+      "name": "KFC Hagymakarika 4 db",
+      "brand": "KFC",
+      "kcal100": 295.8,
+      "protein100": 2.8,
+      "fat100": 15.3,
+      "carbs100": 41.7,
+      "servingGrams": 72,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+        "asOf": "2026-09-22",
+        "portionKcal": 213,
+        "portionGrams": 72
+      }
+    },
+    {
+      "id": "hu-kfc-coleslaw",
+      "name": "KFC Káposztasaláta",
+      "brand": "KFC",
+      "kcal100": 144.3,
+      "protein100": 1.1,
+      "fat100": 10.7,
+      "carbs100": 10.2,
+      "servingGrams": 140,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+        "asOf": "2026-09-22",
+        "portionKcal": 202,
+        "portionGrams": 140
+      }
+    },
+    {
+      "id": "hu-kfc-corn",
+      "name": "KFC Főtt kukorica",
+      "brand": "KFC",
+      "kcal100": 111.2,
+      "protein100": 4.2,
+      "fat100": 2.3,
+      "carbs100": 20.0,
+      "servingGrams": 125,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+        "asOf": "2026-09-22",
+        "portionKcal": 139,
+        "portionGrams": 125
+      }
+    },
+    {
+      "id": "hu-kfc-popcorn-90",
+      "name": "KFC Popcorn csirke 90g",
+      "brand": "KFC",
+      "kcal100": 313.3,
+      "protein100": 16.7,
+      "fat100": 18.3,
+      "carbs100": 20.6,
+      "servingGrams": 90,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+        "asOf": "2026-09-22",
+        "portionKcal": 282,
+        "portionGrams": 90
+      }
+    },
+    {
+      "id": "hu-kfc-shake-van-m",
+      "name": "KFC Shake vanília normál",
+      "brand": "KFC",
+      "kcal100": 108.0,
+      "protein100": 2.8,
+      "fat100": 3.2,
+      "carbs100": 18.0,
+      "servingGrams": 300,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://sawepecomcdn.blob.core.windows.net/kfc-web-ordering/KFC_HUN/23_Fajlok/Tapertek/kfc_hun_tapertek_wolt.pdf",
+        "asOf": "2026-09-22",
+        "portionKcal": 324,
+        "portionGrams": 300
+      }
+    },
+    {
+      "id": "hu-bk-whopper",
+      "name": "Burger King WHOPPER",
+      "brand": "Burger King",
+      "kcal100": 220.1,
+      "protein100": 10.1,
+      "fat100": 12.0,
+      "carbs100": 16.9,
+      "servingGrams": 287,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+        "asOf": "2026-09-01",
+        "portionKcal": 632,
+        "portionGrams": 287
+      }
+    },
+    {
+      "id": "hu-bk-dupla-whopper",
+      "name": "Burger King Dupla WHOPPER",
+      "brand": "Burger King",
+      "kcal100": 236.8,
+      "protein100": 13.2,
+      "fat100": 14.3,
+      "carbs100": 13.1,
+      "servingGrams": 371,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+        "asOf": "2026-09-01",
+        "portionKcal": 879,
+        "portionGrams": 371
+      }
+    },
+    {
+      "id": "hu-bk-whopper-jr",
+      "name": "Burger King WHOPPER Jr.",
+      "brand": "Burger King",
+      "kcal100": 226.5,
+      "protein100": 9.3,
+      "fat100": 10.9,
+      "carbs100": 21.6,
+      "servingGrams": 150,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+        "asOf": "2026-09-01",
+        "portionKcal": 340,
+        "portionGrams": 150
+      }
+    },
+    {
+      "id": "hu-bk-hamburger",
+      "name": "Burger King Hamburger",
+      "brand": "Burger King",
+      "kcal100": 252.1,
+      "protein100": 12.5,
+      "fat100": 9.0,
+      "carbs100": 29.3,
+      "servingGrams": 107,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+        "asOf": "2026-09-01",
+        "portionKcal": 270,
+        "portionGrams": 107
+      }
+    },
+    {
+      "id": "hu-bk-cheeseburger",
+      "name": "Burger King Sajtburger",
+      "brand": "Burger King",
+      "kcal100": 262.0,
+      "protein100": 13.3,
+      "fat100": 10.9,
+      "carbs100": 26.6,
+      "servingGrams": 120,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+        "asOf": "2026-09-01",
+        "portionKcal": 314,
+        "portionGrams": 120
+      }
+    },
+    {
+      "id": "hu-bk-dupla-sajt",
+      "name": "Burger King Dupla sajtburger",
+      "brand": "Burger King",
+      "kcal100": 274.9,
+      "protein100": 16.0,
+      "fat100": 14.4,
+      "carbs100": 19.3,
+      "servingGrams": 167,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+        "asOf": "2026-09-01",
+        "portionKcal": 460,
+        "portionGrams": 167
+      }
+    },
+    {
+      "id": "hu-bk-bacon-king",
+      "name": "Burger King Bacon King",
+      "brand": "Burger King",
+      "kcal100": 305.5,
+      "protein100": 17.9,
+      "fat100": 19.3,
+      "carbs100": 14.2,
+      "servingGrams": 366,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+        "asOf": "2026-09-01",
+        "portionKcal": 1117,
+        "portionGrams": 366
+      }
+    },
+    {
+      "id": "hu-bk-crispy-chicken",
+      "name": "Burger King Crispy Chicken",
+      "brand": "Burger King",
+      "kcal100": 274.1,
+      "protein100": 8.1,
+      "fat100": 14.9,
+      "carbs100": 26.0,
+      "servingGrams": 175,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+        "asOf": "2026-09-01",
+        "portionKcal": 479,
+        "portionGrams": 175
+      }
+    },
+    {
+      "id": "hu-bk-king-deluxe",
+      "name": "Burger King King Deluxe csirkemell",
+      "brand": "Burger King",
+      "kcal100": 227.3,
+      "protein100": 9.5,
+      "fat100": 10.2,
+      "carbs100": 23.3,
+      "servingGrams": 272,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+        "asOf": "2026-09-01",
+        "portionKcal": 618,
+        "portionGrams": 272
+      }
+    },
+    {
+      "id": "hu-bk-nuggets-6",
+      "name": "Burger King King Nuggets 6 db",
+      "brand": "Burger King",
+      "kcal100": 242.0,
+      "protein100": 12.0,
+      "fat100": 12.0,
+      "carbs100": 21.0,
+      "servingGrams": 102,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+        "asOf": "2026-09-01",
+        "portionKcal": 247,
+        "portionGrams": 102
+      }
+    },
+    {
+      "id": "hu-bk-nuggets-9",
+      "name": "Burger King King Nuggets 9 db",
+      "brand": "Burger King",
+      "kcal100": 242.0,
+      "protein100": 12.0,
+      "fat100": 12.0,
+      "carbs100": 21.0,
+      "servingGrams": 153,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+        "asOf": "2026-09-01",
+        "portionKcal": 370,
+        "portionGrams": 153
+      }
+    },
+    {
+      "id": "hu-bk-fries-s",
+      "name": "Burger King Kis burgonya",
+      "brand": "Burger King",
+      "kcal100": 270.9,
+      "protein100": 4.7,
+      "fat100": 13.1,
+      "carbs100": 33.6,
+      "servingGrams": 74,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+        "asOf": "2026-09-01",
+        "portionKcal": 200,
+        "portionGrams": 74
+      }
+    },
+    {
+      "id": "hu-bk-fries-m",
+      "name": "Burger King Közepes burgonya",
+      "brand": "Burger King",
+      "kcal100": 271.0,
+      "protein100": 4.7,
+      "fat100": 13.1,
+      "carbs100": 33.6,
+      "servingGrams": 116,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+        "asOf": "2026-09-01",
+        "portionKcal": 314,
+        "portionGrams": 116
+      }
+    },
+    {
+      "id": "hu-bk-fries-xxl",
+      "name": "Burger King XXL burgonya",
+      "brand": "Burger King",
+      "kcal100": 271.0,
+      "protein100": 4.7,
+      "fat100": 13.1,
+      "carbs100": 33.6,
+      "servingGrams": 248,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+        "asOf": "2026-09-01",
+        "portionKcal": 672,
+        "portionGrams": 248
+      }
+    },
+    {
+      "id": "hu-bk-onion-8",
+      "name": "Burger King Hagymakarika 8 db",
+      "brand": "Burger King",
+      "kcal100": 382.8,
+      "protein100": 4.8,
+      "fat100": 18.5,
+      "carbs100": 47.5,
+      "servingGrams": 92,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+        "asOf": "2026-09-01",
+        "portionKcal": 352,
+        "portionGrams": 92
+      }
+    },
+    {
+      "id": "hu-bk-wrap-smoky",
+      "name": "Burger King Smoky Chicken Wrap",
+      "brand": "Burger King",
+      "kcal100": 224.3,
+      "protein100": 9.6,
+      "fat100": 10.7,
+      "carbs100": 22.0,
+      "servingGrams": 235,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+        "asOf": "2026-09-01",
+        "portionKcal": 527,
+        "portionGrams": 235
+      }
+    },
+    {
+      "id": "hu-bk-plant-whopper",
+      "name": "Burger King Plant-Based WHOPPER",
+      "brand": "Burger King",
+      "kcal100": 183.8,
+      "protein100": 3.8,
+      "fat100": 8.4,
+      "carbs100": 21.8,
+      "servingGrams": 316,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+        "asOf": "2026-09-01",
+        "portionKcal": 581,
+        "portionGrams": 316
+      }
+    },
+    {
+      "id": "hu-bk-chili-cheese",
+      "name": "Burger King Chili cheese burger",
+      "brand": "Burger King",
+      "kcal100": 276.6,
+      "protein100": 11.4,
+      "fat100": 13.6,
+      "carbs100": 26.1,
+      "servingGrams": 119,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+        "asOf": "2026-09-01",
+        "portionKcal": 329,
+        "portionGrams": 119
+      }
+    },
+    {
+      "id": "hu-bk-western-whopper",
+      "name": "Burger King Western WHOPPER",
+      "brand": "Burger King",
+      "kcal100": 229.6,
+      "protein100": 10.7,
+      "fat100": 13.0,
+      "carbs100": 16.4,
+      "servingGrams": 301,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+        "asOf": "2026-09-01",
+        "portionKcal": 691,
+        "portionGrams": 301
+      }
+    },
+    {
+      "id": "hu-bk-cheesy-fries",
+      "name": "Burger King Cheesy Fries",
+      "brand": "Burger King",
+      "kcal100": 262.6,
+      "protein100": 6.0,
+      "fat100": 14.4,
+      "carbs100": 27.2,
+      "servingGrams": 156,
+      "servingLabel": "1 db",
+      "source": "chain",
+      "meta": {
+        "sourceUrl": "https://burgerking.hu/app/uploads/2026/09/Tapanyag-Allergen_tablazat_Web_20260901-2.pdf",
+        "asOf": "2026-09-01",
+        "portionKcal": 410,
+        "portionGrams": 156
+      }
+    }
+  ]
+}

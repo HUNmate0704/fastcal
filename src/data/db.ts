@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import usdaSeed from './usdaSeed.json';
+import huChainsSeed from './huChainsSeed.json';
 
 export type FoodRow = {
   id: string;
@@ -138,6 +139,49 @@ END;
     }
   }
 
+  const chainSeeded = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM meta WHERE key = 'hu_chains_seed_v1'`
+  );
+  if (!chainSeeded) {
+    const items = (huChainsSeed as { items: Array<{
+      id: string;
+      name: string;
+      brand?: string;
+      kcal100: number;
+      protein100: number;
+      fat100: number;
+      carbs100: number;
+      servingGrams?: number;
+      servingLabel?: string;
+    }> }).items;
+    await db.withTransactionAsync(async () => {
+      for (const f of items) {
+        await db.runAsync(
+          `INSERT OR REPLACE INTO foods (id, name, brand, kcal100, protein100, fat100, carbs100, source, ean, serving_grams, serving_label)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'chain', NULL, ?, ?)`,
+          f.id,
+          f.name,
+          f.brand ?? null,
+          f.kcal100,
+          f.protein100,
+          f.fat100,
+          f.carbs100,
+          f.servingGrams ?? null,
+          f.servingLabel ?? null
+        );
+      }
+      await db.runAsync(
+        `INSERT OR REPLACE INTO meta (key, value) VALUES ('hu_chains_seed_v1', '1')`
+      );
+    });
+    try {
+      await db.execAsync(`INSERT INTO foods_fts(foods_fts) VALUES('rebuild');`);
+    } catch {
+      /* ignore */
+    }
+  }
+
+
   return db;
 }
 
@@ -192,7 +236,7 @@ export function rowToFood(r: FoodRow) {
     protein100: r.protein100,
     fat100: r.fat100,
     carbs100: r.carbs100,
-    source: r.source as 'usda' | 'off' | 'custom' | 'history',
+    source: r.source as 'usda' | 'off' | 'custom' | 'history' | 'chain',
     ean: r.ean || undefined,
     servingGrams: r.serving_grams && r.serving_grams > 0 ? r.serving_grams : undefined,
     servingLabel: r.serving_label || undefined,
