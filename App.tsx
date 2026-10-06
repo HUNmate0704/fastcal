@@ -233,7 +233,7 @@ export default function App() {
           </ScrollView>
         </View>
 
-        <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 16 }}>
+        <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
           {MEALS.map((m) => (
             <View
               key={m}
@@ -382,6 +382,12 @@ const styles = StyleSheet.create({
   tabText: { color: '#8b9aab', fontSize: 13, fontWeight: '600' },
   tabTextOn: { color: '#061018', fontWeight: '800' },
   body: { flex: 1, paddingHorizontal: 16 },
+  bodyContent: {
+    flexGrow: 1,
+    justifyContent: 'flex-end',
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
   dock: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#2a3542',
