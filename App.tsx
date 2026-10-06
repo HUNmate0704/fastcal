@@ -8,6 +8,8 @@ import {
   SafeAreaView,
   StatusBar,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { BottomBar } from './src/components/BottomBar';
 import { EntryRow } from './src/components/EntryRow';
@@ -34,6 +36,7 @@ export default function App() {
   const [frequent, setFrequent] = useState<Array<Food & { defaultGrams: number }>>([]);
   const [recent, setRecent] = useState<Food[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [focusEntryId, setFocusEntryId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,9 +84,10 @@ export default function App() {
 
   async function addFood(food: Food, grams: number) {
     if (!api) return;
-    await api.addEntry({ date, meal, food, grams });
+    const created = await api.addEntry({ date, meal, food, grams });
     setSearchOpen(false);
     await reload();
+    setFocusEntryId(created.id);
   }
 
   async function addYesterday() {
@@ -148,6 +152,11 @@ export default function App() {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={8}
+      >
       <View style={styles.head}>
         <Pressable onPress={() => shiftDay(-1)} hitSlop={12}>
           <Text style={styles.nav}>‹</Text>
@@ -204,9 +213,12 @@ export default function App() {
                 <EntryRow
                   key={e.id}
                   entry={e}
+                  autoFocusGrams={focusEntryId === e.id}
+                  onAutoFocusDone={() => setFocusEntryId(null)}
                   onGrams={async (id, g) => {
-                    await api.updateGrams(id, g);
-                    await reload();
+                    const updated = await api.updateGrams(id, g);
+                    // local patch — full reload would steal keyboard focus
+                    setEntries((prev) => prev.map((x) => (x.id === id ? updated : x)));
                   }}
                   onRemove={async (id) => {
                     await api.removeEntry(id);
@@ -220,6 +232,7 @@ export default function App() {
       </ScrollView>
 
       <BottomBar totals={totals} />
+      </KeyboardAvoidingView>
 
       <SearchSheet
         visible={searchOpen}
