@@ -158,8 +158,17 @@ export default function App() {
       snack: [],
     };
     for (const e of entries) m[e.meal].push(e);
+    for (const key of MEALS) {
+      m[key] = [...m[key]].sort((a, b) => a.createdAt - b.createdAt);
+    }
     return m;
   }, [entries]);
+
+
+  function cycleMeal() {
+    const i = MEALS.indexOf(meal);
+    setMeal(MEALS[(i + 1) % MEALS.length]);
+  }
 
   const topPad = { paddingTop: Math.max(insets.top, StatusBar.currentHeight ?? 0) };
   if (bootError) {
@@ -230,10 +239,27 @@ export default function App() {
               key={m}
               style={[styles.section, meal === m && styles.sectionOn]}
             >
-              <Text style={[styles.sectionTitle, meal === m && styles.sectionTitleOn]}>
-                {MEAL_LABEL[m]}
-                {meal === m ? ' · aktív' : ''}
-              </Text>
+              <View style={styles.sectionHead}>
+                <Pressable
+                  onPress={cycleMeal}
+                  hitSlop={8}
+                  style={styles.sectionSwitch}
+                  accessibilityLabel="Következő étkezés"
+                >
+                  <Text style={[styles.sectionSwitchText, meal === m && styles.sectionSwitchOn]}>
+                    {meal === m ? '●' : '○'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={styles.sectionTitleHit}
+                  onPress={() => setMeal(m)}
+                >
+                  <Text style={[styles.sectionTitle, meal === m && styles.sectionTitleOn]}>
+                    {MEAL_LABEL[m]}
+                    {meal === m ? ' · aktív' : ''}
+                  </Text>
+                </Pressable>
+              </View>
               {byMeal[m].length === 0 ? (
                 <Text style={styles.empty}>Üres</Text>
               ) : (
@@ -394,13 +420,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#3d9cf0',
   },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    gap: 8,
+  },
+  sectionSwitch: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionSwitchText: { color: '#5a6a7a', fontSize: 16 },
+  sectionSwitchOn: { color: '#3d9cf0' },
+  sectionTitleHit: { flex: 1, paddingVertical: 4 },
   sectionTitle: {
     color: '#8b9aab',
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 4,
   },
   sectionTitleOn: { color: '#3d9cf0' },
   empty: { color: '#5a6a7a', fontSize: 13, paddingVertical: 8 },
