@@ -170,6 +170,14 @@ export const mockApi: DataApi = {
     }
     return null;
   },
+  async getKcalGoal() {
+    return 2200;
+  },
+
+  async setKcalGoal(_kcal: number) {
+    /* noop */
+  },
+
   async saveCustom(input) {
     const f: Food = { id: uid(), source: 'custom', ...input };
     foods.set(f.id, f);

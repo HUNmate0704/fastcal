@@ -359,6 +359,25 @@ export async function createSqliteApi(): Promise<DataApi> {
       await upsertFood(f);
       return f;
     },
+
+    async getKcalGoal() {
+      const db = await getDb();
+      const row = await db.getFirstAsync<{ value: string }>(
+        `SELECT value FROM meta WHERE key = 'kcal_goal'`
+      );
+      const n = row ? Number(row.value) : 2200;
+      return Number.isFinite(n) && n >= 800 && n <= 8000 ? Math.round(n) : 2200;
+    },
+
+    async setKcalGoal(kcal) {
+      const n = Math.round(Number(kcal));
+      if (!(n >= 800 && n <= 8000)) return;
+      const db = await getDb();
+      await db.runAsync(
+        `INSERT OR REPLACE INTO meta (key, value) VALUES ('kcal_goal', ?)`,
+        String(n)
+      );
+    },
   };
 
   return api;

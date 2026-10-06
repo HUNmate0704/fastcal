@@ -2,18 +2,19 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { DayTotals } from '../types';
 
-const GOAL = 2200;
-
 export function BottomBar({
   totals,
+  goal = 2200,
   bottomInset = 0,
   placement = 'bottom',
 }: {
   totals: DayTotals;
+  goal?: number;
   bottomInset?: number;
   placement?: 'top' | 'bottom';
 }) {
-  const pct = Math.min(100, Math.round((totals.kcal / GOAL) * 100));
+  const safeGoal = goal > 0 ? goal : 2200;
+  const pct = Math.min(100, Math.round((totals.kcal / safeGoal) * 100));
   const pad =
     placement === 'top'
       ? { paddingTop: 6, paddingBottom: 10 }
@@ -28,10 +29,16 @@ export function BottomBar({
     >
       <View style={styles.row}>
         <Text style={styles.kcal}>{totals.kcal}</Text>
-        <Text style={styles.kcalUnit}> / {GOAL} kcal</Text>
+        <Text style={styles.kcalUnit}> / {safeGoal} kcal</Text>
       </View>
       <View style={styles.barBg}>
-        <View style={[styles.barFill, { width: `${pct}%` as unknown as number }]} />
+        <View
+          style={[
+            styles.barFill,
+            { width: `${pct}%` as unknown as number },
+            totals.kcal > safeGoal ? styles.barOver : null,
+          ]}
+        />
       </View>
       <View style={styles.macros}>
         <Macro label="Fehérje" value={totals.protein} unit="g" />
@@ -77,6 +84,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   barFill: { height: 4, backgroundColor: '#3ecf8e', borderRadius: 2 },
+  barOver: { backgroundColor: '#f0b429' },
   macros: { flexDirection: 'row', gap: 16, marginTop: 10 },
   macro: { color: '#e8eef4', fontSize: 14 },
   macroLabel: { color: '#8b9aab', fontWeight: '600' },

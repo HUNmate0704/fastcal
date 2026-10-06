@@ -58,4 +58,6 @@ export type DataApi = {
   yesterdaySameMeal(date: string, meal: Meal): Promise<DiaryEntry[]>;
   lookupEan(ean: string): Promise<Food | null>;
   saveCustom(food: Omit<Food, 'id' | 'source'> & { kcal100: number }): Promise<Food>;
+  getKcalGoal(): Promise<number>;
+  setKcalGoal(kcal: number): Promise<void>;
 };

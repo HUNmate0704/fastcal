@@ -15,6 +15,7 @@ import { BottomBar } from './src/components/BottomBar';
 import { EntryRow } from './src/components/EntryRow';
 import { QuickAdd } from './src/components/QuickAdd';
 import { SearchSheet } from './src/components/SearchSheet';
+import { SettingsSheet } from './src/components/SettingsSheet';
 import { createSqliteApi, today as todayStr } from './src/data/sqliteStore';
 import type { DataApi, DiaryEntry, Food, Meal } from './src/types';
 
@@ -58,6 +59,8 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [scanDirect, setScanDirect] = useState(false);
   const [focusEntryId, setFocusEntryId] = useState<string | null>(null);
+  const [kcalGoal, setKcalGoal] = useState(2200);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,6 +93,11 @@ export default function App() {
   useEffect(() => {
     reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (!api) return;
+    api.getKcalGoal().then(setKcalGoal).catch(() => setKcalGoal(2200));
+  }, [api]);
 
   const totals = useMemo(() => {
     return entries.reduce(
@@ -198,14 +206,19 @@ export default function App() {
             <Text style={styles.nav}>‹</Text>
           </Pressable>
           <View style={{ alignItems: 'center' }}>
-            <Text style={styles.title}>Fastcal</Text>
+            <View style={styles.titleRow}>
+              <Text style={styles.title}>Fastcal</Text>
+              <Pressable onPress={() => setSettingsOpen(true)} hitSlop={10} style={styles.gearBtn}>
+                <Text style={styles.gear}>⚙</Text>
+              </Pressable>
+            </View>
             <Text style={styles.date}>{dayLabel(date)}</Text>
           </View>
           <Pressable onPress={() => shiftDay(1)} hitSlop={12}>
             <Text style={styles.nav}>›</Text>
           </Pressable>
         </View>
-        <BottomBar totals={totals} placement="top" />
+        <BottomBar totals={totals} goal={kcalGoal} placement="top" />
 
         {/* MID: meal tabs + diary */}
         <View style={styles.mealTabsWrap}>
@@ -319,6 +332,15 @@ export default function App() {
         }}
         onPick={addFood}
       />
+      <SettingsSheet
+        visible={settingsOpen}
+        kcalGoal={kcalGoal}
+        onClose={() => setSettingsOpen(false)}
+        onSave={async (n) => {
+          await api.setKcalGoal(n);
+          setKcalGoal(n);
+        }}
+      />
     </View>
   );
 }
@@ -335,7 +357,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { color: '#e8eef4', fontSize: 18, fontWeight: '700' },
+  gearBtn: { padding: 2 },
+  gear: { color: '#8b9aab', fontSize: 18 },
   date: { color: '#8b9aab', fontSize: 13, marginTop: 2 },
   nav: { color: '#3d9cf0', fontSize: 32, fontWeight: '300', paddingHorizontal: 8 },
   mealTabsWrap: {
