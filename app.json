@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "gyors-kcal",
-    "slug": "gyors-kcal",
+    "name": "Fastcal",
+    "slug": "fastcal",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

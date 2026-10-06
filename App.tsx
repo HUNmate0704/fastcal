@@ -153,7 +153,7 @@ export default function App() {
           <Text style={styles.nav}>‹</Text>
         </Pressable>
         <View style={{ alignItems: 'center' }}>
-          <Text style={styles.title}>Gyors kcal</Text>
+          <Text style={styles.title}>Fastcal</Text>
           <Text style={styles.date}>{date}</Text>
         </View>
         <Pressable onPress={() => shiftDay(1)} hitSlop={12}>

@@ -1,4 +1,4 @@
-/** Shared front↔back contract — gyors-kcal POC */
+/** Shared front↔back contract — fastcal POC */
 export type Meal = 'reggeli' | 'ebed' | 'vacsora' | 'snack';
 
 export type Food = {

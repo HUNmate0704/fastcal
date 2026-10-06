@@ -1,6 +1,6 @@
 import type { Food } from '../types';
 
-const UA = 'GyorsKcalPOC/0.1 (penzgyar; offline-first calorie diary)';
+const UA = 'FastcalPOC/0.1 (penzgyar; offline-first calorie diary)';
 
 type OffProduct = {
   code?: string;

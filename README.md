@@ -1,4 +1,4 @@
-# Gyors kcal (POC)
+# Fastcal (POC)
 
 Yazio-helyettesítő gyors kalórianapló — EU/HU, Expo + TypeScript + SQLite/FTS5 + Open Food Facts.
 
@@ -15,7 +15,7 @@ Yazio-helyettesítő gyors kalórianapló — EU/HU, Expo + TypeScript + SQLite/
 ## Futtatás
 
 ```bash
-cd /workspace/gyors-kcal
+cd /workspace/fastcal
 npm start          # Expo — QR / a = Android
 npm run android    # emulator (AVD kell)
 npm run web        # böngésző (SQLite wasm)

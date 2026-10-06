@@ -21,7 +21,7 @@ export function getDb() {
 }
 
 async function openAndMigrate() {
-  const db = await SQLite.openDatabaseAsync('gyors-kcal.db');
+  const db = await SQLite.openDatabaseAsync('fastcal.db');
   await db.execAsync(`
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
