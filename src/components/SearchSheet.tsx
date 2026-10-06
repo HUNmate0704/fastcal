@@ -17,11 +17,12 @@ type Props = {
   visible: boolean;
   meal: Meal;
   api: DataApi;
+  startWithScan?: boolean;
   onClose: () => void;
   onPick: (food: Food, grams: number) => void;
 };
 
-export function SearchSheet({ visible, meal, api, onClose, onPick }: Props) {
+export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick }: Props) {
   const insets = useSafeAreaInsets();
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<SearchHit[]>([]);
@@ -41,8 +42,10 @@ export function SearchSheet({ visible, meal, api, onClose, onPick }: Props) {
       setCustomOpen(false);
       setScanOpen(false);
       setScanAgain(false);
+      return;
     }
-  }, [visible]);
+    if (startWithScan) setScanOpen(true);
+  }, [visible, startWithScan]);
 
   useEffect(() => {
     let cancelled = false;

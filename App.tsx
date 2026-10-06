@@ -26,6 +26,25 @@ const MEAL_LABEL: Record<Meal, string> = {
   snack: 'Snack',
 };
 
+function dayLabel(iso: string): string {
+  const t = new Date(todayStr() + 'T12:00:00');
+  const d = new Date(iso + 'T12:00:00');
+  const diff = Math.round((d.getTime() - t.getTime()) / 86400000);
+  const rel =
+    diff === 0
+      ? 'Ma'
+      : diff === -1
+        ? 'Tegnap'
+        : diff === -2
+          ? 'Tegnapelőtt'
+          : diff === 1
+            ? 'Holnap'
+            : diff === 2
+              ? 'Holnapután'
+              : null;
+  return rel ? `${rel} · ${iso}` : iso;
+}
+
 export default function App() {
   const insets = useSafeAreaInsets();
   const [api, setApi] = useState<DataApi | null>(null);
@@ -37,6 +56,7 @@ export default function App() {
   const [frequent, setFrequent] = useState<Array<Food & { defaultGrams: number }>>([]);
   const [recent, setRecent] = useState<Food[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [scanDirect, setScanDirect] = useState(false);
   const [focusEntryId, setFocusEntryId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -165,7 +185,7 @@ export default function App() {
         </Pressable>
         <View style={{ alignItems: 'center' }}>
           <Text style={styles.title}>Fastcal</Text>
-          <Text style={styles.date}>{date}</Text>
+          <Text style={styles.date}>{dayLabel(date)}</Text>
         </View>
         <Pressable onPress={() => shiftDay(1)} hitSlop={12}>
           <Text style={styles.nav}>›</Text>
@@ -202,9 +222,26 @@ export default function App() {
         />
 
         <View style={styles.actions}>
-          <Pressable style={styles.primary} onPress={() => setSearchOpen(true)}>
-            <Text style={styles.primaryText}>+ Keresés / Scan</Text>
-          </Pressable>
+          <View style={styles.actionRow}>
+            <Pressable
+              style={[styles.primary, styles.actionHalf]}
+              onPress={() => {
+                setScanDirect(false);
+                setSearchOpen(true);
+              }}
+            >
+              <Text style={styles.primaryText}>+ Keresés</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.scanBtn, styles.actionHalf]}
+              onPress={() => {
+                setScanDirect(true);
+                setSearchOpen(true);
+              }}
+            >
+              <Text style={styles.primaryText}>Scan</Text>
+            </Pressable>
+          </View>
           <Pressable style={styles.ghost} onPress={copyYday}>
             <Text style={styles.ghostText}>Tegnapi nap másolása</Text>
           </Pressable>
@@ -245,7 +282,11 @@ export default function App() {
         visible={searchOpen}
         meal={meal}
         api={api}
-        onClose={() => setSearchOpen(false)}
+        startWithScan={scanDirect}
+        onClose={() => {
+          setSearchOpen(false);
+          setScanDirect(false);
+        }}
         onPick={addFood}
       />
     </View>
@@ -288,8 +329,16 @@ const styles = StyleSheet.create({
   tabTextOn: { color: '#e8eef4' },
   body: { flex: 1, paddingHorizontal: 16 },
   actions: { gap: 8, marginBottom: 16 },
+  actionRow: { flexDirection: 'row', gap: 8 },
+  actionHalf: { flex: 1 },
   primary: {
     backgroundColor: '#3d9cf0',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  scanBtn: {
+    backgroundColor: '#2a9d6a',
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
