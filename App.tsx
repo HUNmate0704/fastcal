@@ -5,12 +5,12 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomBar } from './src/components/BottomBar';
 import { EntryRow } from './src/components/EntryRow';
 import { QuickAdd } from './src/components/QuickAdd';
@@ -27,6 +27,7 @@ const MEAL_LABEL: Record<Meal, string> = {
 };
 
 export default function App() {
+  const insets = useSafeAreaInsets();
   const [api, setApi] = useState<DataApi | null>(null);
   const [bootError, setBootError] = useState<string | null>(null);
   const [date, setDate] = useState(todayStr());
@@ -132,26 +133,27 @@ export default function App() {
     return m;
   }, [entries]);
 
+  const topPad = { paddingTop: Math.max(insets.top, StatusBar.currentHeight ?? 0) };
   if (bootError) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <View style={[styles.safe, topPad]}>
         <Text style={styles.bootErr}>SQLite hiba: {bootError}</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!api) {
     return (
-      <SafeAreaView style={[styles.safe, styles.center]}>
+      <View style={[styles.safe, styles.center, topPad]}>
         <ActivityIndicator color="#3d9cf0" size="large" />
         <Text style={styles.boot}>Adatbázis…</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="light-content" />
+    <View style={[styles.safe, topPad]}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -236,7 +238,7 @@ export default function App() {
         ))}
       </ScrollView>
 
-      <BottomBar totals={totals} />
+      <BottomBar totals={totals} bottomInset={insets.bottom} />
       </KeyboardAvoidingView>
 
       <SearchSheet
@@ -246,7 +248,7 @@ export default function App() {
         onClose={() => setSearchOpen(false)}
         onPick={addFood}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

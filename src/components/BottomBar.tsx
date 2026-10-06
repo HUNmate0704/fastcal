@@ -4,10 +4,16 @@ import type { DayTotals } from '../types';
 
 const GOAL = 2200;
 
-export function BottomBar({ totals }: { totals: DayTotals }) {
+export function BottomBar({
+  totals,
+  bottomInset = 0,
+}: {
+  totals: DayTotals;
+  bottomInset?: number;
+}) {
   const pct = Math.min(100, Math.round((totals.kcal / GOAL) * 100));
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, { paddingBottom: 10 + bottomInset }]}>
       <View style={styles.row}>
         <Text style={styles.kcal}>{totals.kcal}</Text>
         <Text style={styles.kcalUnit}> / {GOAL} kcal</Text>
@@ -41,7 +47,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#121820',
     paddingHorizontal: 16,
     paddingTop: 10,
-    paddingBottom: 14,
+    paddingBottom: 0,
   },
   row: { flexDirection: 'row', alignItems: 'baseline' },
   kcal: { color: '#e8eef4', fontSize: 28, fontWeight: '700', letterSpacing: -0.5 },

@@ -8,6 +8,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 
 type Props = {
@@ -17,6 +18,7 @@ type Props = {
 };
 
 export function BarcodeScanModal({ visible, onClose, onCode }: Props) {
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
@@ -46,7 +48,7 @@ export function BarcodeScanModal({ visible, onClose, onCode }: Props) {
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.wrap}>
+      <View style={[styles.wrap, { paddingTop: insets.top }]}>
         <View style={styles.head}>
           <Text style={styles.title}>Vonalkód</Text>
           <Pressable onPress={onClose} hitSlop={12}>
@@ -95,7 +97,7 @@ export function BarcodeScanModal({ visible, onClose, onCode }: Props) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#0f1419', paddingTop: 48 },
+  wrap: { flex: 1, backgroundColor: '#0f1419' },
   head: {
     flexDirection: 'row',
     justifyContent: 'space-between',

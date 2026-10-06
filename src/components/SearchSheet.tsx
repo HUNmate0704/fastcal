@@ -9,6 +9,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { DataApi, Food, Meal, SearchHit } from '../types';
 import { BarcodeScanModal } from './BarcodeScanModal';
 
@@ -21,6 +22,7 @@ type Props = {
 };
 
 export function SearchSheet({ visible, meal, api, onClose, onPick }: Props) {
+  const insets = useSafeAreaInsets();
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [loading, setLoading] = useState(false);
@@ -106,7 +108,7 @@ export function SearchSheet({ visible, meal, api, onClose, onPick }: Props) {
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.wrap}>
+      <View style={[styles.wrap, { paddingTop: insets.top }]}>
         <View style={styles.head}>
           <Text style={styles.title}>Keresés · {meal}</Text>
           <Pressable onPress={onClose} hitSlop={12}>
@@ -201,7 +203,7 @@ export function SearchSheet({ visible, meal, api, onClose, onPick }: Props) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#0f1419', paddingTop: 48, paddingHorizontal: 16 },
+  wrap: { flex: 1, backgroundColor: '#0f1419', paddingHorizontal: 16 },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   title: { color: '#e8eef4', fontSize: 20, fontWeight: '700' },
   close: { color: '#3d9cf0', fontSize: 16, fontWeight: '600' },
