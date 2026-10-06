@@ -11,10 +11,34 @@ type OffProduct = {
   nutrition_data_per?: string;
   countries_tags?: string[];
   languages_tags?: string[];
+  serving_size?: string;
+  serving_quantity?: number | string;
+  product_quantity?: number | string;
+  product_quantity_unit?: string;
 };
 
 function n(v: number | undefined, fallback = 0) {
   return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+}
+
+/** Parse grams from OFF serving_size / quantity when present. */
+export function parseServing(p: OffProduct): { grams?: number; label?: string } {
+  const size = (p.serving_size || '').trim();
+  const fromSize = size.match(/(\d+[.,]?\d*)\s*g\b/i);
+  if (fromSize) {
+    const grams = Number(fromSize[1].replace(',', '.'));
+    if (grams > 0 && grams < 2000) {
+      return { grams, label: size.length <= 24 ? size : '1 adag' };
+    }
+  }
+  const qtyRaw = p.serving_quantity ?? p.product_quantity;
+  const qty = typeof qtyRaw === 'string' ? Number(qtyRaw.replace(',', '.')) : Number(qtyRaw);
+  const unit = (p.product_quantity_unit || '').toLowerCase();
+  if (qty > 0 && qty < 2000 && (unit === 'g' || unit === 'gram' || unit === 'grams' || (!unit && qty >= 10))) {
+    return { grams: qty, label: size || '1 adag' };
+  }
+  if (size) return { label: size.slice(0, 32) };
+  return {};
 }
 
 /** Prefer per-100g; skip incomplete rows. */
@@ -31,6 +55,7 @@ export function productToFood(p: OffProduct, ean?: string): Food | null {
   const name = (p.product_name_hu || p.product_name || '').trim();
   if (!name || !(kcal > 0)) return null;
   const code = ean || p.code || '';
+  const serving = parseServing(p);
   return {
     id: code ? `off-${code}` : `off-${name.toLowerCase().replace(/\s+/g, '-').slice(0, 40)}`,
     name,
@@ -41,6 +66,8 @@ export function productToFood(p: OffProduct, ean?: string): Food | null {
     carbs100: Math.round(carbs * 10) / 10,
     source: 'off',
     ean: code || undefined,
+    servingGrams: serving.grams,
+    servingLabel: serving.label,
   };
 }
 
@@ -73,7 +100,7 @@ export function huPreferScore(p: OffProduct): number {
 export async function fetchOffByEan(ean: string): Promise<Food | null> {
   const code = ean.replace(/\D/g, '');
   if (code.length < 8) return null;
-  const url = `https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=code,product_name,product_name_hu,brands,nutriments,countries_tags,languages_tags`;
+  const url = `https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=code,product_name,product_name_hu,brands,nutriments,countries_tags,languages_tags,serving_size,serving_quantity,product_quantity,product_quantity_unit`;
   const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' } });
   if (!res.ok) return null;
   const data = (await res.json()) as { status?: number; product?: OffProduct };
@@ -91,7 +118,7 @@ export async function searchOff(q: string, limit = 12): Promise<SearchHit[]> {
     json: '1',
     page_size: String(limit * 2),
     fields:
-      'code,product_name,product_name_hu,brands,nutriments,countries_tags,languages_tags',
+      'code,product_name,product_name_hu,brands,nutriments,countries_tags,languages_tags,serving_size,serving_quantity,product_quantity,product_quantity_unit',
   });
   const url = `https://world.openfoodfacts.org/cgi/search.pl?${params}`;
   const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' } });

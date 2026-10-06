@@ -37,6 +37,8 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
   const [loopScan, setLoopScan] = useState(false);
   const [pending, setPending] = useState<Food | null>(null);
   const [grams, setGrams] = useState('100');
+  const [unitMode, setUnitMode] = useState<'serving' | 'grams'>('grams');
+  const [cServing, setCServing] = useState('');
   const gramsRef = useRef<TextInput>(null);
   const searchRef = useRef<TextInput>(null);
 
@@ -51,6 +53,8 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
     setLoopScan(false);
     setPending(null);
     setGrams('100');
+    setUnitMode('grams');
+    setCServing('');
   }
 
   useEffect(() => {
@@ -94,6 +98,17 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
     };
   }, [q, api]);
 
+  function openPending(food: Food) {
+    setPending(food);
+    if (food.servingGrams && food.servingGrams > 0) {
+      setUnitMode('serving');
+      setGrams('1');
+    } else {
+      setUnitMode('grams');
+      setGrams('100');
+    }
+  }
+
   function exitAll() {
     resetAll();
     onClose();
@@ -120,8 +135,7 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
     const food = await api.lookupEan(cleaned);
     setLoading(false);
     if (food) {
-      setPending(food);
-      setGrams('100');
+      openPending(food);
     } else {
       setCustomOpen(true);
     }
@@ -133,12 +147,18 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
 
   async function confirmGrams() {
     if (!pending) return;
-    const g = Number(grams.replace(',', '.'));
+    const qty = Number(grams.replace(',', '.'));
+    if (!(qty > 0)) return;
+    const g =
+      unitMode === 'serving' && pending.servingGrams
+        ? qty * pending.servingGrams
+        : qty;
     if (!(g > 0)) return;
     const keep = loopScan;
     await onPick(pending, g, { keepOpen: keep });
     setPending(null);
     setGrams('100');
+    setUnitMode('grams');
     if (keep) {
       setScanOpen(true);
     } else {
@@ -155,6 +175,7 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
   async function saveCustom() {
     const kcal = Number(cKcal.replace(',', '.'));
     if (!cName.trim() || !(kcal > 0)) return;
+    const sg = Number(cServing.replace(',', '.'));
     const food = await api.saveCustom({
       name: cName.trim(),
       kcal100: kcal,
@@ -162,12 +183,14 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
       fat100: 0,
       carbs100: 0,
       ean: ean.trim() || undefined,
+      servingGrams: sg > 0 ? sg : undefined,
+      servingLabel: sg > 0 ? '1 adag' : undefined,
     });
     setCustomOpen(false);
     setCName('');
     setCKcal('');
-    setPending(food);
-    setGrams('100');
+    setCServing('');
+    openPending(food);
   }
 
   function cancelCustom() {
@@ -182,7 +205,13 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
       <View style={[styles.wrap, { paddingTop: insets.top }]}>
         <View style={styles.head}>
           <Text style={styles.title}>
-            {pending ? 'Gramm' : customOpen ? 'Ismeretlen' : `Keresés · ${meal}`}
+            {pending
+              ? unitMode === 'serving'
+                ? 'Adag'
+                : 'Gramm'
+              : customOpen
+                ? 'Ismeretlen'
+                : `Keresés · ${meal}`}
           </Text>
           <Pressable onPress={exitAll} hitSlop={12}>
             <Text style={styles.close}>Bezár</Text>
@@ -198,8 +227,37 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
             <Text style={styles.confirmName}>{pending.name}</Text>
             <Text style={styles.confirmMeta}>
               {pending.kcal100} kcal/100g
+              {pending.servingGrams
+                ? ` · ${pending.servingLabel || '1 adag'} = ${pending.servingGrams}g`
+                : ''}
               {pending.brand ? ` · ${pending.brand}` : ''}
             </Text>
+            {pending.servingGrams ? (
+              <View style={styles.modeRow}>
+                <Pressable
+                  style={[styles.modeBtn, unitMode === 'serving' && styles.modeOn]}
+                  onPress={() => {
+                    setUnitMode('serving');
+                    setGrams('1');
+                  }}
+                >
+                  <Text style={[styles.modeText, unitMode === 'serving' && styles.modeTextOn]}>
+                    Adag
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.modeBtn, unitMode === 'grams' && styles.modeOn]}
+                  onPress={() => {
+                    setUnitMode('grams');
+                    setGrams(String(pending.servingGrams));
+                  }}
+                >
+                  <Text style={[styles.modeText, unitMode === 'grams' && styles.modeTextOn]}>
+                    Gramm
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
             <TextInput
               ref={gramsRef}
               style={styles.input}
@@ -211,9 +269,17 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
               onSubmitEditing={confirmGrams}
               autoFocus
             />
-            <Text style={styles.unitHint}>gramm</Text>
+            <Text style={styles.unitHint}>
+              {unitMode === 'serving'
+                ? pending.servingLabel || 'adag'
+                : 'gramm'}
+            </Text>
             {(() => {
-              const g = Number(String(grams).replace(',', '.'));
+              const qty = Number(String(grams).replace(',', '.'));
+              const g =
+                unitMode === 'serving' && pending.servingGrams
+                  ? qty * pending.servingGrams
+                  : qty;
               const ok = Number.isFinite(g) && g > 0;
               const k = ok ? g / 100 : 0;
               const kcal = Math.round(pending.kcal100 * k);
@@ -226,6 +292,9 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
                   <Text style={styles.liveMacros}>
                     Fehérje {ok ? p : '—'}g · Zsír {ok ? z : '—'}g · Szénhidrát {ok ? sz : '—'}g
                   </Text>
+                  {unitMode === 'serving' && ok ? (
+                    <Text style={styles.liveSub}>{Math.round(g)} g</Text>
+                  ) : null}
                 </View>
               );
             })()}
@@ -254,6 +323,14 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
               placeholderTextColor="#5a6a7a"
               value={cKcal}
               onChangeText={setCKcal}
+              keyboardType="decimal-pad"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="1 adag = ? g (opcionális)"
+              placeholderTextColor="#5a6a7a"
+              value={cServing}
+              onChangeText={setCServing}
               keyboardType="decimal-pad"
             />
             <Pressable style={styles.primary} onPress={saveCustom}>
@@ -306,9 +383,8 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
                 <Pressable
                   style={styles.hit}
                   onPress={() => {
-                    setPending(item);
-                    setGrams('100');
                     setLoopScan(false);
+                    openPending(item);
                   }}
                 >
                   <View style={{ flex: 1 }}>
@@ -399,6 +475,20 @@ const styles = StyleSheet.create({
   },
   liveKcal: { color: '#3ecf8e', fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
   liveMacros: { color: '#8b9aab', fontSize: 14, marginTop: 4, fontWeight: '600' },
+  liveSub: { color: '#5a6a7a', fontSize: 12, marginTop: 4 },
+  modeRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  modeBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#1a222c',
+    borderWidth: 1,
+    borderColor: '#2a3542',
+  },
+  modeOn: { backgroundColor: '#243040', borderColor: '#3d9cf0' },
+  modeText: { color: '#8b9aab', fontWeight: '700' },
+  modeTextOn: { color: '#e8eef4' },
   primary: {
     backgroundColor: '#3d9cf0',
     borderRadius: 12,

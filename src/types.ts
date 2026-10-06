@@ -11,6 +11,10 @@ export type Food = {
   carbs100: number;
   source: 'usda' | 'off' | 'custom' | 'history';
   ean?: string;
+  /** grams in one serving when known (OFF or custom) */
+  servingGrams?: number;
+  /** e.g. "1 adag", "1 db" */
+  servingLabel?: string;
 };
 
 export type DiaryEntry = {

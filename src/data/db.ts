@@ -11,6 +11,8 @@ export type FoodRow = {
   carbs100: number;
   source: string;
   ean: string | null;
+  serving_grams: number | null;
+  serving_label: string | null;
 };
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -88,6 +90,18 @@ END;
     // FTS unavailable — LIKE fallback in search
   }
 
+  // serving columns (idempotent)
+  try {
+    await db.execAsync(`ALTER TABLE foods ADD COLUMN serving_grams REAL`);
+  } catch {
+    /* exists */
+  }
+  try {
+    await db.execAsync(`ALTER TABLE foods ADD COLUMN serving_label TEXT`);
+  } catch {
+    /* exists */
+  }
+
   const seeded = await db.getFirstAsync<{ value: string }>(
     `SELECT value FROM meta WHERE key = 'usda_seed_v1'`
   );
@@ -137,11 +151,13 @@ export async function upsertFood(food: {
   carbs100: number;
   source: string;
   ean?: string;
+  servingGrams?: number;
+  servingLabel?: string;
 }) {
   const db = await getDb();
   await db.runAsync(
-    `INSERT INTO foods (id, name, brand, kcal100, protein100, fat100, carbs100, source, ean)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO foods (id, name, brand, kcal100, protein100, fat100, carbs100, source, ean, serving_grams, serving_label)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        name=excluded.name,
        brand=excluded.brand,
@@ -150,7 +166,9 @@ export async function upsertFood(food: {
        fat100=excluded.fat100,
        carbs100=excluded.carbs100,
        source=excluded.source,
-       ean=excluded.ean`,
+       ean=excluded.ean,
+       serving_grams=COALESCE(excluded.serving_grams, foods.serving_grams),
+       serving_label=COALESCE(excluded.serving_label, foods.serving_label)`,
     food.id,
     food.name,
     food.brand ?? null,
@@ -159,7 +177,9 @@ export async function upsertFood(food: {
     food.fat100,
     food.carbs100,
     food.source,
-    food.ean ?? null
+    food.ean ?? null,
+    food.servingGrams ?? null,
+    food.servingLabel ?? null
   );
 }
 
@@ -174,5 +194,7 @@ export function rowToFood(r: FoodRow) {
     carbs100: r.carbs100,
     source: r.source as 'usda' | 'off' | 'custom' | 'history',
     ean: r.ean || undefined,
+    servingGrams: r.serving_grams && r.serving_grams > 0 ? r.serving_grams : undefined,
+    servingLabel: r.serving_label || undefined,
   };
 }

@@ -353,6 +353,8 @@ export async function createSqliteApi(): Promise<DataApi> {
         fat100: input.fat100,
         carbs100: input.carbs100,
         ean: input.ean,
+        servingGrams: input.servingGrams,
+        servingLabel: input.servingLabel,
       };
       await upsertFood(f);
       return f;
