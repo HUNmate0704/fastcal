@@ -165,10 +165,6 @@ export default function App() {
   }, [entries]);
 
 
-  function cycleMeal() {
-    const i = MEALS.indexOf(meal);
-    setMeal(MEALS[(i + 1) % MEALS.length]);
-  }
 
   const topPad = { paddingTop: Math.max(insets.top, StatusBar.currentHeight ?? 0) };
   if (bootError) {
@@ -235,30 +231,20 @@ export default function App() {
 
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
           {MEALS.map((m) => (
-            <View
+            <Pressable
               key={m}
-              style={[styles.section, meal === m && styles.sectionOn]}
+              onPress={() => setMeal(m)}
+              style={[styles.card, meal === m && styles.cardOn]}
             >
-              <View style={styles.sectionHead}>
-                <Pressable
-                  onPress={cycleMeal}
-                  hitSlop={8}
-                  style={styles.sectionSwitch}
-                  accessibilityLabel="Következő étkezés"
-                >
-                  <Text style={[styles.sectionSwitchText, meal === m && styles.sectionSwitchOn]}>
-                    {meal === m ? '●' : '○'}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={styles.sectionTitleHit}
-                  onPress={() => setMeal(m)}
-                >
-                  <Text style={[styles.sectionTitle, meal === m && styles.sectionTitleOn]}>
-                    {MEAL_LABEL[m]}
-                    {meal === m ? ' · aktív' : ''}
-                  </Text>
-                </Pressable>
+              <View style={styles.cardHead}>
+                <Text style={[styles.cardTitle, meal === m && styles.cardTitleOn]}>
+                  {MEAL_LABEL[m]}
+                </Text>
+                {meal === m ? (
+                  <Text style={styles.cardBadge}>aktív</Text>
+                ) : (
+                  <Text style={styles.cardHint}>koppints</Text>
+                )}
               </View>
               {byMeal[m].length === 0 ? (
                 <Text style={styles.empty}>Üres</Text>
@@ -280,7 +266,7 @@ export default function App() {
                   />
                 ))
               )}
-            </View>
+            </Pressable>
           ))}
         </ScrollView>
 
@@ -420,34 +406,46 @@ const styles = StyleSheet.create({
     borderColor: '#2a3542',
   },
   ghostText: { color: '#8b9aab', fontWeight: '600' },
-  section: { marginBottom: 14, padding: 8, borderRadius: 12 },
-  sectionOn: {
-    backgroundColor: '#16202a',
+  card: {
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: '#151c24',
     borderWidth: 1,
-    borderColor: '#3d9cf0',
+    borderColor: '#243040',
+    minHeight: 72,
   },
-  sectionHead: {
+  cardOn: {
+    backgroundColor: '#1a2a3a',
+    borderColor: '#3d9cf0',
+    borderWidth: 2,
+  },
+  cardHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
-    gap: 8,
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    minHeight: 28,
   },
-  sectionSwitch: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionSwitchText: { color: '#5a6a7a', fontSize: 16 },
-  sectionSwitchOn: { color: '#3d9cf0' },
-  sectionTitleHit: { flex: 1, paddingVertical: 4 },
-  sectionTitle: {
+  cardTitle: {
     color: '#8b9aab',
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
-  sectionTitleOn: { color: '#3d9cf0' },
+  cardTitleOn: { color: '#3d9cf0' },
+  cardBadge: {
+    color: '#061018',
+    backgroundColor: '#3d9cf0',
+    overflow: 'hidden',
+    fontSize: 11,
+    fontWeight: '800',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  cardHint: { color: '#5a6a7a', fontSize: 12 },
   empty: { color: '#5a6a7a', fontSize: 13, paddingVertical: 8 },
 });

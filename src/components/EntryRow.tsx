@@ -47,6 +47,14 @@ export function EntryRow({
     inputRef.current?.focus();
   }
 
+  const liveG = Number(String(val).replace(',', '.'));
+  const liveOk = focused && Number.isFinite(liveG) && liveG > 0 && entry.grams > 0;
+  const kg = liveOk ? liveG / entry.grams : 1;
+  const showKcal = liveOk ? Math.round(entry.kcal * kg) : entry.kcal;
+  const showP = liveOk ? Math.round(entry.protein * kg * 10) / 10 : entry.protein;
+  const showZ = liveOk ? Math.round(entry.fat * kg * 10) / 10 : entry.fat;
+  const showSz = liveOk ? Math.round(entry.carbs * kg * 10) / 10 : entry.carbs;
+
   function commit() {
     setFocused(false);
     const g = Number(val.replace(',', '.'));
@@ -63,8 +71,8 @@ export function EntryRow({
         <Text style={styles.name} numberOfLines={1}>
           {entry.name}
         </Text>
-        <Text style={styles.meta}>
-          {entry.kcal} kcal · P {entry.protein} · Z {entry.fat} · Sz {entry.carbs}
+        <Text style={[styles.meta, liveOk && styles.metaLive]}>
+          {showKcal} kcal · P {showP} · Z {showZ} · Sz {showSz}
         </Text>
       </View>
       <TextInput
@@ -111,6 +119,7 @@ const styles = StyleSheet.create({
   },
   name: { color: '#e8eef4', fontSize: 16, fontWeight: '500' },
   meta: { color: '#8b9aab', fontSize: 12, marginTop: 2 },
+  metaLive: { color: '#3ecf8e' },
   input: {
     width: 64,
     backgroundColor: '#1a222c',

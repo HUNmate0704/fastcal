@@ -8,6 +8,8 @@ import {
   Modal,
   StyleSheet,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { DataApi, Food, Meal, SearchHit } from '../types';
@@ -36,6 +38,7 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
   const [pending, setPending] = useState<Food | null>(null);
   const [grams, setGrams] = useState('100');
   const gramsRef = useRef<TextInput>(null);
+  const searchRef = useRef<TextInput>(null);
 
   function resetAll() {
     setQ('');
@@ -58,7 +61,10 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
     if (startWithScan) {
       setLoopScan(true);
       setScanOpen(true);
+      return;
     }
+    const t = setTimeout(() => searchRef.current?.focus(), 120);
+    return () => clearTimeout(t);
   }, [visible, startWithScan]);
 
   useEffect(() => {
@@ -184,7 +190,11 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
         </View>
 
         {pending ? (
-          <View style={styles.confirm}>
+          <KeyboardAvoidingView
+            style={styles.confirm}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={24}
+          >
             <Text style={styles.confirmName}>{pending.name}</Text>
             <Text style={styles.confirmMeta}>
               {pending.kcal100} kcal/100g
@@ -202,6 +212,23 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
               autoFocus
             />
             <Text style={styles.unitHint}>gramm</Text>
+            {(() => {
+              const g = Number(String(grams).replace(',', '.'));
+              const ok = Number.isFinite(g) && g > 0;
+              const k = ok ? g / 100 : 0;
+              const kcal = Math.round(pending.kcal100 * k);
+              const p = Math.round(pending.protein100 * k * 10) / 10;
+              const z = Math.round(pending.fat100 * k * 10) / 10;
+              const sz = Math.round(pending.carbs100 * k * 10) / 10;
+              return (
+                <View style={styles.liveBox}>
+                  <Text style={styles.liveKcal}>{ok ? kcal : '—'} kcal</Text>
+                  <Text style={styles.liveMacros}>
+                    P {ok ? p : '—'}g · Z {ok ? z : '—'}g · Sz {ok ? sz : '—'}g
+                  </Text>
+                </View>
+              );
+            })()}
             <Pressable style={styles.primary} onPress={confirmGrams}>
               <Text style={styles.primaryText}>Mentés{loopScan ? ' → újra scan' : ''}</Text>
             </Pressable>
@@ -210,7 +237,7 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
                 {loopScan ? 'Kihagy → kamera' : 'Mégsem'}
               </Text>
             </Pressable>
-          </View>
+          </KeyboardAvoidingView>
         ) : customOpen ? (
           <View style={styles.custom}>
             <Text style={styles.customTitle}>Ismeretlen EAN — kézi kcal/100g</Text>
@@ -239,6 +266,7 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
         ) : (
           <>
             <TextInput
+              ref={searchRef}
               style={styles.input}
               placeholder="Étel neve…"
               placeholderTextColor="#5a6a7a"
@@ -358,7 +386,19 @@ const styles = StyleSheet.create({
   confirm: { paddingTop: 8 },
   confirmName: { color: '#e8eef4', fontSize: 22, fontWeight: '700', marginBottom: 4 },
   confirmMeta: { color: '#8b9aab', marginBottom: 16 },
-  unitHint: { color: '#8b9aab', marginTop: -6, marginBottom: 16 },
+  unitHint: { color: '#8b9aab', marginTop: -6, marginBottom: 12 },
+  liveBox: {
+    backgroundColor: '#16202a',
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#2a3542',
+    alignItems: 'center',
+  },
+  liveKcal: { color: '#3ecf8e', fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
+  liveMacros: { color: '#8b9aab', fontSize: 14, marginTop: 4, fontWeight: '600' },
   primary: {
     backgroundColor: '#3d9cf0',
     borderRadius: 12,
