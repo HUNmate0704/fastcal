@@ -178,6 +178,21 @@ export const mockApi: DataApi = {
     /* noop */
   },
 
+  async getLoggedDates(from, to) {
+    const dates = new Set(entries.map((e) => e.date));
+    return [...dates].filter((d) => d >= from && d <= to).sort();
+  },
+
+  async getDayKcalMap(from, to) {
+    const out: Record<string, number> = {};
+    for (const e of entries) {
+      if (e.date < from || e.date > to) continue;
+      out[e.date] = (out[e.date] ?? 0) + e.kcal;
+    }
+    for (const k of Object.keys(out)) out[k] = Math.round(out[k]);
+    return out;
+  },
+
   async saveCustom(input) {
     const f: Food = { id: uid(), source: 'custom', ...input };
     foods.set(f.id, f);

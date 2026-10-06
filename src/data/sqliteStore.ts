@@ -378,6 +378,28 @@ export async function createSqliteApi(): Promise<DataApi> {
         String(n)
       );
     },
+
+    async getLoggedDates(from, to) {
+      const db = await getDb();
+      const rows = await db.getAllAsync<{ date: string }>(
+        `SELECT DISTINCT date FROM entries WHERE date >= ? AND date <= ? ORDER BY date`,
+        from,
+        to
+      );
+      return rows.map((r) => r.date);
+    },
+
+    async getDayKcalMap(from, to) {
+      const db = await getDb();
+      const rows = await db.getAllAsync<{ date: string; kcal: number }>(
+        `SELECT date, SUM(kcal) as kcal FROM entries WHERE date >= ? AND date <= ? GROUP BY date`,
+        from,
+        to
+      );
+      const out: Record<string, number> = {};
+      for (const r of rows) out[r.date] = Math.round(r.kcal);
+      return out;
+    },
   };
 
   return api;

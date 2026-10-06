@@ -45,6 +45,11 @@ export function BottomBar({
         <Macro label="Zsír" value={totals.fat} unit="g" />
         <Macro label="Szénhidrát" value={totals.carbs} unit="g" />
       </View>
+      <Text style={styles.remain}>
+        {totals.kcal > safeGoal
+          ? `+${totals.kcal - safeGoal} kcal a cél felett`
+          : `${safeGoal - totals.kcal} kcal hátra`}
+      </Text>
     </View>
   );
 }
@@ -88,4 +93,5 @@ const styles = StyleSheet.create({
   macros: { flexDirection: 'row', gap: 16, marginTop: 10 },
   macro: { color: '#e8eef4', fontSize: 14 },
   macroLabel: { color: '#8b9aab', fontWeight: '600' },
+  remain: { color: '#5a6a7a', fontSize: 12, marginTop: 8 },
 });

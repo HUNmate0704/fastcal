@@ -60,4 +60,8 @@ export type DataApi = {
   saveCustom(food: Omit<Food, 'id' | 'source'> & { kcal100: number }): Promise<Food>;
   getKcalGoal(): Promise<number>;
   setKcalGoal(kcal: number): Promise<void>;
+  /** ISO dates (inclusive range) that have ≥1 entry */
+  getLoggedDates(from: string, to: string): Promise<string[]>;
+  /** kcal sum per ISO date in range */
+  getDayKcalMap(from: string, to: string): Promise<Record<string, number>>;
 };

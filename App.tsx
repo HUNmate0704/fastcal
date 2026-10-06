@@ -9,9 +9,12 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Share,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomBar } from './src/components/BottomBar';
+import { CalendarSheet } from './src/components/CalendarSheet';
 import { EntryRow } from './src/components/EntryRow';
 import { QuickAdd } from './src/components/QuickAdd';
 import { SearchSheet } from './src/components/SearchSheet';
@@ -46,6 +49,35 @@ function dayLabel(iso: string): string {
   return rel ? `${rel} · ${iso}` : iso;
 }
 
+function shiftIso(iso: string, delta: number): string {
+  const d = new Date(iso + 'T12:00:00');
+  d.setDate(d.getDate() + delta);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function weekAround(center: string): string[] {
+  // Mon–Sun containing center
+  const d = new Date(center + 'T12:00:00');
+  const dow = (d.getDay() + 6) % 7; // Mon=0
+  const mon = new Date(d);
+  mon.setDate(d.getDate() - dow);
+  const out: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const x = new Date(mon);
+    x.setDate(mon.getDate() + i);
+    const y = x.getFullYear();
+    const m = String(x.getMonth() + 1).padStart(2, '0');
+    const day = String(x.getDate()).padStart(2, '0');
+    out.push(`${y}-${m}-${day}`);
+  }
+  return out;
+}
+
+const WEEK_SHORT = ['H', 'K', 'Sze', 'Cs', 'P', 'Szo', 'V'];
+
 export default function App() {
   const insets = useSafeAreaInsets();
   const [api, setApi] = useState<DataApi | null>(null);
@@ -61,6 +93,9 @@ export default function App() {
   const [focusEntryId, setFocusEntryId] = useState<string | null>(null);
   const [kcalGoal, setKcalGoal] = useState(2200);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [loggedDates, setLoggedDates] = useState<Set<string>>(new Set());
+  const [dayKcalMap, setDayKcalMap] = useState<Record<string, number>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -99,6 +134,21 @@ export default function App() {
     api.getKcalGoal().then(setKcalGoal).catch(() => setKcalGoal(2200));
   }, [api]);
 
+  // Load calendar dots for ~3 months around selected date
+  useEffect(() => {
+    if (!api) return;
+    const from = shiftIso(date, -90);
+    const to = shiftIso(date, 45);
+    Promise.all([api.getLoggedDates(from, to), api.getDayKcalMap(from, to)])
+      .then(([dates, map]) => {
+        setLoggedDates(new Set(dates));
+        setDayKcalMap(map);
+      })
+      .catch(() => {
+        /* ignore */
+      });
+  }, [api, date, entries.length]);
+
   const totals = useMemo(() => {
     return entries.reduce(
       (a, e) => ({
@@ -110,6 +160,15 @@ export default function App() {
       { kcal: 0, protein: 0, fat: 0, carbs: 0 }
     );
   }, [entries]);
+
+  const mealTotals = useMemo(() => {
+    const m: Record<Meal, number> = { reggeli: 0, ebed: 0, vacsora: 0, snack: 0 };
+    for (const e of entries) m[e.meal] += e.kcal;
+    return m;
+  }, [entries]);
+
+  const weekDays = useMemo(() => weekAround(date), [date]);
+  const isToday = date === todayStr();
 
   async function addFood(food: Food, grams: number, opts?: { keepOpen?: boolean }) {
     if (!api) return;
@@ -142,20 +201,36 @@ export default function App() {
   }
 
   function shiftDay(delta: number) {
-    const d = new Date(date + 'T12:00:00');
-    d.setDate(d.getDate() + delta);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    setDate(`${y}-${m}-${day}`);
+    setDate(shiftIso(date, delta));
   }
 
   async function copyYday() {
     if (!api) return;
-    const d = new Date(date + 'T12:00:00');
-    d.setDate(d.getDate() - 1);
-    await api.copyDay(d.toISOString().slice(0, 10), date);
+    await api.copyDay(shiftIso(date, -1), date);
     await reload();
+  }
+
+  async function shareDay() {
+    const lines = [
+      `Fastcal · ${dayLabel(date)}`,
+      `${totals.kcal} / ${kcalGoal} kcal`,
+      `F ${Math.round(totals.protein)}g · Z ${Math.round(totals.fat)}g · Sz ${Math.round(totals.carbs)}g`,
+      '',
+    ];
+    for (const m of MEALS) {
+      const list = entries.filter((e) => e.meal === m);
+      if (list.length === 0) continue;
+      lines.push(`${MEAL_LABEL[m]} (${mealTotals[m]} kcal)`);
+      for (const e of list) {
+        lines.push(`  · ${e.name} ${e.grams}g — ${e.kcal} kcal`);
+      }
+      lines.push('');
+    }
+    try {
+      await Share.share({ message: lines.join('\n').trim() });
+    } catch {
+      Alert.alert('Nem sikerült megosztani');
+    }
   }
 
   const byMeal = useMemo(() => {
@@ -171,8 +246,6 @@ export default function App() {
     }
     return m;
   }, [entries]);
-
-
 
   const topPad = { paddingTop: Math.max(insets.top, StatusBar.currentHeight ?? 0) };
   if (bootError) {
@@ -211,13 +284,47 @@ export default function App() {
               <Pressable onPress={() => setSettingsOpen(true)} hitSlop={10} style={styles.gearBtn}>
                 <Text style={styles.gear}>⚙</Text>
               </Pressable>
+              <Pressable onPress={shareDay} hitSlop={10} style={styles.gearBtn}>
+                <Text style={styles.share}>↗</Text>
+              </Pressable>
             </View>
-            <Text style={styles.date}>{dayLabel(date)}</Text>
+            <Pressable onPress={() => setCalendarOpen(true)} hitSlop={8}>
+              <Text style={styles.date}>{dayLabel(date)} ▾</Text>
+            </Pressable>
           </View>
           <Pressable onPress={() => shiftDay(1)} hitSlop={12}>
             <Text style={styles.nav}>›</Text>
           </Pressable>
         </View>
+
+        {/* Week strip */}
+        <View style={styles.weekStrip}>
+          {weekDays.map((iso, i) => {
+            const on = iso === date;
+            const has = loggedDates.has(iso);
+            const isT = iso === todayStr();
+            return (
+              <Pressable
+                key={iso}
+                onPress={() => setDate(iso)}
+                style={[styles.weekCell, on && styles.weekCellOn]}
+              >
+                <Text style={[styles.weekDow, on && styles.weekDowOn]}>{WEEK_SHORT[i]}</Text>
+                <Text style={[styles.weekDay, on && styles.weekDayOn, isT && !on && styles.weekToday]}>
+                  {Number(iso.slice(8))}
+                </Text>
+                {has ? <View style={[styles.weekDot, on && styles.weekDotOn]} /> : <View style={styles.weekDotSp} />}
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {!isToday ? (
+          <Pressable style={styles.jumpToday} onPress={() => setDate(todayStr())}>
+            <Text style={styles.jumpTodayText}>← Ma</Text>
+          </Pressable>
+        ) : null}
+
         <BottomBar totals={totals} goal={kcalGoal} placement="top" />
 
         {/* MID: meal tabs + diary */}
@@ -253,11 +360,18 @@ export default function App() {
                 <Text style={[styles.cardTitle, meal === m && styles.cardTitleOn]}>
                   {MEAL_LABEL[m]}
                 </Text>
-                {meal === m ? (
-                  <Text style={styles.cardBadge}>aktív</Text>
-                ) : (
-                  <Text style={styles.cardHint}>koppints</Text>
-                )}
+                <View style={styles.cardRight}>
+                  {mealTotals[m] > 0 ? (
+                    <Text style={[styles.cardKcal, meal === m && styles.cardKcalOn]}>
+                      {mealTotals[m]} kcal
+                    </Text>
+                  ) : null}
+                  {meal === m ? (
+                    <Text style={styles.cardBadge}>aktív</Text>
+                  ) : (
+                    <Text style={styles.cardHint}>koppints</Text>
+                  )}
+                </View>
               </View>
               {byMeal[m].length === 0 ? (
                 <Text style={styles.empty}>Üres</Text>
@@ -341,6 +455,15 @@ export default function App() {
           setKcalGoal(n);
         }}
       />
+      <CalendarSheet
+        visible={calendarOpen}
+        selected={date}
+        today={todayStr()}
+        logged={loggedDates}
+        dayKcal={dayKcalMap}
+        onClose={() => setCalendarOpen(false)}
+        onPick={setDate}
+      />
     </View>
   );
 }
@@ -361,8 +484,43 @@ const styles = StyleSheet.create({
   title: { color: '#e8eef4', fontSize: 18, fontWeight: '700' },
   gearBtn: { padding: 2 },
   gear: { color: '#8b9aab', fontSize: 18 },
+  share: { color: '#8b9aab', fontSize: 18, fontWeight: '700' },
   date: { color: '#8b9aab', fontSize: 13, marginTop: 2 },
   nav: { color: '#3d9cf0', fontSize: 32, fontWeight: '300', paddingHorizontal: 8 },
+  weekStrip: {
+    flexDirection: 'row',
+    paddingHorizontal: 10,
+    paddingBottom: 6,
+    gap: 2,
+  },
+  weekCell: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  weekCellOn: { backgroundColor: '#1a2a3a' },
+  weekDow: { color: '#5a6a7a', fontSize: 10, fontWeight: '600' },
+  weekDowOn: { color: '#3d9cf0' },
+  weekDay: { color: '#e8eef4', fontSize: 15, fontWeight: '700', marginTop: 2 },
+  weekDayOn: { color: '#3d9cf0' },
+  weekToday: { color: '#3ecf8e' },
+  weekDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#3ecf8e',
+    marginTop: 3,
+  },
+  weekDotOn: { backgroundColor: '#3d9cf0' },
+  weekDotSp: { height: 4, marginTop: 3 },
+  jumpToday: {
+    alignSelf: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginBottom: 4,
+  },
+  jumpTodayText: { color: '#3d9cf0', fontSize: 13, fontWeight: '600' },
   mealTabsWrap: {
     paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -453,6 +611,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     minHeight: 28,
   },
+  cardRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   cardTitle: {
     color: '#8b9aab',
     fontSize: 15,
@@ -461,6 +620,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   cardTitleOn: { color: '#3d9cf0' },
+  cardKcal: { color: '#5a6a7a', fontSize: 12, fontWeight: '600' },
+  cardKcalOn: { color: '#8b9aab' },
   cardBadge: {
     color: '#061018',
     backgroundColor: '#3d9cf0',
