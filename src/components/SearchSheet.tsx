@@ -224,7 +224,7 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
                 <View style={styles.liveBox}>
                   <Text style={styles.liveKcal}>{ok ? kcal : '—'} kcal</Text>
                   <Text style={styles.liveMacros}>
-                    P {ok ? p : '—'}g · Z {ok ? z : '—'}g · Sz {ok ? sz : '—'}g
+                    Fehérje {ok ? p : '—'}g · Zsír {ok ? z : '—'}g · Szénhidrát {ok ? sz : '—'}g
                   </Text>
                 </View>
               );

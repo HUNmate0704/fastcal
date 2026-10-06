@@ -34,9 +34,9 @@ export function BottomBar({
         <View style={[styles.barFill, { width: `${pct}%` as unknown as number }]} />
       </View>
       <View style={styles.macros}>
-        <Macro label="P" value={totals.protein} unit="g" />
-        <Macro label="Z" value={totals.fat} unit="g" />
-        <Macro label="Sz" value={totals.carbs} unit="g" />
+        <Macro label="Fehérje" value={totals.protein} unit="g" />
+        <Macro label="Zsír" value={totals.fat} unit="g" />
+        <Macro label="Szénhidrát" value={totals.carbs} unit="g" />
       </View>
     </View>
   );

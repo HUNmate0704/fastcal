@@ -72,7 +72,7 @@ export function EntryRow({
           {entry.name}
         </Text>
         <Text style={[styles.meta, liveOk && styles.metaLive]}>
-          {showKcal} kcal · P {showP} · Z {showZ} · Sz {showSz}
+          {showKcal} kcal · Feh. {showP} · Zsír {showZ} · Szénh. {showSz}
         </Text>
       </View>
       <TextInput

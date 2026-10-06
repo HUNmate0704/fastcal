@@ -44,6 +44,60 @@ function entryFromRow(r: {
   };
 }
 
+
+/** Lowercase, trim, collapse spaces; strip HU accents for compare. */
+function normalizeQuery(s: string): string {
+  const map: Record<string, string> = {
+    á: 'a',
+    é: 'e',
+    í: 'i',
+    ó: 'o',
+    ö: 'o',
+    ő: 'o',
+    ú: 'u',
+    ü: 'u',
+    ű: 'u',
+    à: 'a',
+    è: 'e',
+    ì: 'i',
+    ò: 'o',
+    ù: 'u',
+    ä: 'a',
+    ë: 'e',
+    ï: 'i',
+    ç: 'c',
+    ñ: 'n',
+    ß: 'ss',
+  };
+  return s
+    .toLowerCase()
+    .split('')
+    .map((ch) => map[ch] ?? ch)
+    .join('')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+/** Name-match boosts vs query (exact / starts-with / tokens / shorter). */
+function nameMatchBoost(name: string, query: string): number {
+  const nq = normalizeQuery(query);
+  const nn = normalizeQuery(name);
+  if (!nq || !nn) return 0;
+  let boost = 0;
+  if (nn === nq) boost += 20;
+  else if (nn.startsWith(nq)) boost += 12;
+  const tokens = nq.split(' ').filter(Boolean);
+  if (tokens.length > 0) {
+    const nameTokens = new Set(nn.split(' ').filter(Boolean));
+    if (tokens.every((t) => nameTokens.has(t))) boost += 6;
+  }
+  const nameLen = nn.length;
+  boost += Math.max(0, 4 - Math.floor(nameLen / 20));
+  return boost;
+}
+
 async function searchLocal(q: string): Promise<SearchHit[]> {
   const db = await getDb();
   const qq = q.trim();
@@ -87,6 +141,7 @@ async function searchLocal(q: string): Promise<SearchHit[]> {
     if (f.source === 'custom' || f.source === 'history') score += 3;
     if (f.source === 'usda') score += 2;
     if (useMap.has(f.id)) score += 4 + Math.min(useMap.get(f.id)!, 5);
+    score += nameMatchBoost(f.name, qq);
     // complete macros already required for seed/OFF
     return { ...f, score };
   });
@@ -214,7 +269,10 @@ export async function createSqliteApi(): Promise<DataApi> {
         const merged = new Map<string, SearchHit>();
         for (const h of local) merged.set(h.id, h);
         for (const f of remote) {
-          if (!merged.has(f.id)) merged.set(f.id, f);
+          if (merged.has(f.id)) continue;
+          // Keep HU/EU (huPreferScore) already on the hit; add name-match boosts vs query.
+          const base = typeof f.score === 'number' ? f.score : 1;
+          merged.set(f.id, { ...f, score: base + nameMatchBoost(f.name, q) });
         }
         return [...merged.values()]
           .sort((a, b) => (b.score || 0) - (a.score || 0))
