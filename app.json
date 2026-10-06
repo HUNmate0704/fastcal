@@ -7,7 +7,10 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Fastcal vonalk\u00f3d olvas\u00e1s\u00e1hoz sz\u00fcks\u00e9ges a kamera."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -16,7 +19,10 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -26,6 +32,13 @@
         "expo-sqlite",
         {
           "enableFTS": true
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Fastcal vonalk\u00f3d olvas\u00e1s\u00e1hoz sz\u00fcks\u00e9ges a kamera.",
+          "recordAudioAndroid": false
         }
       ]
     ]

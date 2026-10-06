@@ -80,7 +80,7 @@ function Chip({
 const styles = StyleSheet.create({
   wrap: { marginBottom: 8 },
   title: { color: '#8b9aab', fontSize: 12, fontWeight: '600', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.4 },
-  chips: { gap: 8, paddingRight: 8 },
+  chips: { gap: 8, paddingLeft: 0, paddingRight: 20 },
   chip: {
     backgroundColor: '#1a222c',
     borderRadius: 20,

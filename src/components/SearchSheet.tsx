@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import type { DataApi, Food, Meal, SearchHit } from '../types';
+import { BarcodeScanModal } from './BarcodeScanModal';
 
 type Props = {
   visible: boolean;
@@ -27,6 +28,8 @@ export function SearchSheet({ visible, meal, api, onClose, onPick }: Props) {
   const [customOpen, setCustomOpen] = useState(false);
   const [cName, setCName] = useState('');
   const [cKcal, setCKcal] = useState('');
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanAgain, setScanAgain] = useState(false);
 
   useEffect(() => {
     if (!visible) {
@@ -34,6 +37,8 @@ export function SearchSheet({ visible, meal, api, onClose, onPick }: Props) {
       setHits([]);
       setEan('');
       setCustomOpen(false);
+      setScanOpen(false);
+      setScanAgain(false);
     }
   }, [visible]);
 
@@ -57,14 +62,25 @@ export function SearchSheet({ visible, meal, api, onClose, onPick }: Props) {
     };
   }, [q, api]);
 
-  async function doEan() {
-    const code = ean.trim();
-    if (!code) return;
+  async function lookupCode(code: string, fromScan: boolean) {
+    const cleaned = code.trim();
+    if (!cleaned) return;
+    setEan(cleaned);
     setLoading(true);
-    const food = await api.lookupEan(code);
+    setScanOpen(false);
+    const food = await api.lookupEan(cleaned);
     setLoading(false);
-    if (food) onPick(food, 100);
-    else setCustomOpen(true);
+    if (food) {
+      onPick(food, 100);
+      if (fromScan) setScanAgain(true);
+    } else {
+      setCustomOpen(true);
+      setScanAgain(fromScan);
+    }
+  }
+
+  async function doEan() {
+    await lookupCode(ean, false);
   }
 
   async function saveCustom() {
@@ -79,6 +95,13 @@ export function SearchSheet({ visible, meal, api, onClose, onPick }: Props) {
       ean: ean.trim() || undefined,
     });
     onPick(food, 100);
+    if (scanAgain) {
+      setCustomOpen(false);
+      setCName('');
+      setCKcal('');
+      setScanOpen(true);
+      setScanAgain(false);
+    }
   }
 
   return (
@@ -111,7 +134,15 @@ export function SearchSheet({ visible, meal, api, onClose, onPick }: Props) {
           <Pressable style={styles.eanBtn} onPress={doEan}>
             <Text style={styles.eanBtnText}>OFF</Text>
           </Pressable>
+          <Pressable style={styles.scanBtn} onPress={() => setScanOpen(true)}>
+            <Text style={styles.eanBtnText}>Scan</Text>
+          </Pressable>
         </View>
+        {scanAgain && !scanOpen && (
+          <Pressable style={styles.again} onPress={() => setScanOpen(true)}>
+            <Text style={styles.againText}>↗ Újra scannelés</Text>
+          </Pressable>
+        )}
         {loading && <ActivityIndicator color="#3d9cf0" style={{ marginVertical: 8 }} />}
         {customOpen && (
           <View style={styles.custom}>
@@ -154,11 +185,17 @@ export function SearchSheet({ visible, meal, api, onClose, onPick }: Props) {
           )}
           ListEmptyComponent={
             q.trim() && !loading ? (
-              <Text style={styles.empty}>Nincs találat — próbálj EAN-t vagy saját ételt.</Text>
+              <Text style={styles.empty}>Nincs találat — próbálj EAN-t / Scan-t.</Text>
             ) : null
           }
         />
       </View>
+
+      <BarcodeScanModal
+        visible={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onCode={(code) => lookupCode(code, true)}
+      />
     </Modal>
   );
 }
@@ -183,10 +220,18 @@ const styles = StyleSheet.create({
   eanBtn: {
     backgroundColor: '#243040',
     borderRadius: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  scanBtn: {
+    backgroundColor: '#3d9cf0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
     paddingVertical: 12,
   },
   eanBtnText: { color: '#e8eef4', fontWeight: '700' },
+  again: { marginBottom: 10, alignSelf: 'flex-start' },
+  againText: { color: '#3ecf8e', fontWeight: '600' },
   hit: {
     flexDirection: 'row',
     alignItems: 'center',

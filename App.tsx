@@ -170,7 +170,12 @@ export default function App() {
         </Pressable>
       </View>
 
-      <View style={styles.mealTabs}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.mealTabsScroll}
+        contentContainerStyle={styles.mealTabs}
+      >
         {MEALS.map((m) => (
           <Pressable
             key={m}
@@ -182,7 +187,7 @@ export default function App() {
             </Text>
           </Pressable>
         ))}
-      </View>
+      </ScrollView>
 
       <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 24 }}>
         <QuickAdd
@@ -196,7 +201,7 @@ export default function App() {
 
         <View style={styles.actions}>
           <Pressable style={styles.primary} onPress={() => setSearchOpen(true)}>
-            <Text style={styles.primaryText}>+ Keresés / EAN</Text>
+            <Text style={styles.primaryText}>+ Keresés / Scan</Text>
           </Pressable>
           <Pressable style={styles.ghost} onPress={copyYday}>
             <Text style={styles.ghostText}>Tegnapi nap másolása</Text>
@@ -260,18 +265,21 @@ const styles = StyleSheet.create({
   title: { color: '#e8eef4', fontSize: 18, fontWeight: '700' },
   date: { color: '#8b9aab', fontSize: 13, marginTop: 2 },
   nav: { color: '#3d9cf0', fontSize: 32, fontWeight: '300', paddingHorizontal: 8 },
+  mealTabsScroll: { marginBottom: 8, flexGrow: 0 },
   mealTabs: {
     flexDirection: 'row',
     paddingHorizontal: 12,
+    paddingRight: 20,
     gap: 6,
-    marginBottom: 8,
+    alignItems: 'center',
   },
   tab: {
-    flex: 1,
     paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 10,
     backgroundColor: '#1a222c',
     alignItems: 'center',
+    minWidth: 84,
   },
   tabOn: { backgroundColor: '#243040', borderWidth: 1, borderColor: '#3d9cf0' },
   tabText: { color: '#8b9aab', fontSize: 12, fontWeight: '600' },
