@@ -214,7 +214,7 @@ export async function createSqliteApi(): Promise<DataApi> {
         const merged = new Map<string, SearchHit>();
         for (const h of local) merged.set(h.id, h);
         for (const f of remote) {
-          if (!merged.has(f.id)) merged.set(f.id, { ...f, score: 1 });
+          if (!merged.has(f.id)) merged.set(f.id, f);
         }
         return [...merged.values()]
           .sort((a, b) => (b.score || 0) - (a.score || 0))

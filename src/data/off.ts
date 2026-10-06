@@ -1,4 +1,4 @@
-import type { Food } from '../types';
+import type { Food, SearchHit } from '../types';
 
 const UA = 'FastcalPOC/0.1 (penzgyar; offline-first calorie diary)';
 
@@ -46,8 +46,23 @@ export function productToFood(p: OffProduct, ean?: string): Food | null {
 
 export function huPreferScore(p: OffProduct): number {
   let s = 0;
-  const tags = [...(p.countries_tags || []), ...(p.languages_tags || [])];
+  const tags = [...(p.countries_tags || []), ...(p.languages_tags || [])].map((t) =>
+    t.toLowerCase()
+  );
   if (tags.some((t) => t.includes('hungary') || t === 'en:hu' || t === 'hu')) s += 3;
+  else if (
+    tags.some(
+      (t) =>
+        t.includes('european') ||
+        t.includes(':eu') ||
+        /:(at|de|sk|ro|hr|si|cz|pl|it|fr|es|nl|be|se|dk|fi|ie|pt|bg|lt|lv|ee)$/.test(t) ||
+        t.includes('austria') ||
+        t.includes('germany') ||
+        t.includes('slovakia') ||
+        t.includes('romania')
+    )
+  )
+    s += 2;
   if (p.product_name_hu) s += 2;
   const nut = p.nutriments || {};
   if (nut.proteins_100g != null && nut.fat_100g != null && nut.carbohydrates_100g != null) s += 2;
@@ -66,7 +81,7 @@ export async function fetchOffByEan(ean: string): Promise<Food | null> {
   return productToFood(data.product, code);
 }
 
-export async function searchOff(q: string, limit = 12): Promise<Food[]> {
+export async function searchOff(q: string, limit = 12): Promise<SearchHit[]> {
   const term = q.trim();
   if (term.length < 2) return [];
   const params = new URLSearchParams({
@@ -84,13 +99,14 @@ export async function searchOff(q: string, limit = 12): Promise<Food[]> {
   const data = (await res.json()) as { products?: OffProduct[] };
   const products = data.products || [];
   const ranked = [...products].sort((a, b) => huPreferScore(b) - huPreferScore(a));
-  const out: Food[] = [];
+  const out: SearchHit[] = [];
   const seen = new Set<string>();
   for (const p of ranked) {
     const f = productToFood(p);
     if (!f || seen.has(f.id)) continue;
     seen.add(f.id);
-    out.push(f);
+    // keep below heavy local history (+4…), above bare OFF filler
+    out.push({ ...f, score: 1 + huPreferScore(p) });
     if (out.length >= limit) break;
   }
   return out;
