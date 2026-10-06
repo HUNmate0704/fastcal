@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -19,7 +19,7 @@ type Props = {
   api: DataApi;
   startWithScan?: boolean;
   onClose: () => void;
-  onPick: (food: Food, grams: number) => void;
+  onPick: (food: Food, grams: number, opts?: { keepOpen?: boolean }) => void | Promise<void>;
 };
 
 export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick }: Props) {
@@ -32,20 +32,41 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
   const [cName, setCName] = useState('');
   const [cKcal, setCKcal] = useState('');
   const [scanOpen, setScanOpen] = useState(false);
-  const [scanAgain, setScanAgain] = useState(false);
+  const [loopScan, setLoopScan] = useState(false);
+  const [pending, setPending] = useState<Food | null>(null);
+  const [grams, setGrams] = useState('100');
+  const gramsRef = useRef<TextInput>(null);
+
+  function resetAll() {
+    setQ('');
+    setHits([]);
+    setEan('');
+    setCustomOpen(false);
+    setCName('');
+    setCKcal('');
+    setScanOpen(false);
+    setLoopScan(false);
+    setPending(null);
+    setGrams('100');
+  }
 
   useEffect(() => {
     if (!visible) {
-      setQ('');
-      setHits([]);
-      setEan('');
-      setCustomOpen(false);
-      setScanOpen(false);
-      setScanAgain(false);
+      resetAll();
       return;
     }
-    if (startWithScan) setScanOpen(true);
+    if (startWithScan) {
+      setLoopScan(true);
+      setScanOpen(true);
+    }
   }, [visible, startWithScan]);
+
+  useEffect(() => {
+    if (pending) {
+      const t = setTimeout(() => gramsRef.current?.focus(), 80);
+      return () => clearTimeout(t);
+    }
+  }, [pending]);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,25 +88,62 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
     };
   }, [q, api]);
 
+  function exitAll() {
+    resetAll();
+    onClose();
+  }
+
+  function exitScanOnly() {
+    setScanOpen(false);
+    setPending(null);
+    setCustomOpen(false);
+    if (loopScan || startWithScan) {
+      exitAll();
+    } else {
+      setLoopScan(false);
+    }
+  }
+
   async function lookupCode(code: string, fromScan: boolean) {
     const cleaned = code.trim();
     if (!cleaned) return;
     setEan(cleaned);
     setLoading(true);
     setScanOpen(false);
+    if (fromScan) setLoopScan(true);
     const food = await api.lookupEan(cleaned);
     setLoading(false);
     if (food) {
-      onPick(food, 100);
-      if (fromScan) setScanAgain(true);
+      setPending(food);
+      setGrams('100');
     } else {
       setCustomOpen(true);
-      setScanAgain(fromScan);
     }
   }
 
   async function doEan() {
     await lookupCode(ean, false);
+  }
+
+  async function confirmGrams() {
+    if (!pending) return;
+    const g = Number(grams.replace(',', '.'));
+    if (!(g > 0)) return;
+    const keep = loopScan;
+    await onPick(pending, g, { keepOpen: keep });
+    setPending(null);
+    setGrams('100');
+    if (keep) {
+      setScanOpen(true);
+    } else {
+      exitAll();
+    }
+  }
+
+  function skipPending() {
+    setPending(null);
+    setGrams('100');
+    if (loopScan) setScanOpen(true);
   }
 
   async function saveCustom() {
@@ -99,57 +157,61 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
       carbs100: 0,
       ean: ean.trim() || undefined,
     });
-    onPick(food, 100);
-    if (scanAgain) {
-      setCustomOpen(false);
-      setCName('');
-      setCKcal('');
-      setScanOpen(true);
-      setScanAgain(false);
-    }
+    setCustomOpen(false);
+    setCName('');
+    setCKcal('');
+    setPending(food);
+    setGrams('100');
+  }
+
+  function cancelCustom() {
+    setCustomOpen(false);
+    setCName('');
+    setCKcal('');
+    if (loopScan) setScanOpen(true);
   }
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={exitAll}>
       <View style={[styles.wrap, { paddingTop: insets.top }]}>
         <View style={styles.head}>
-          <Text style={styles.title}>Keresés · {meal}</Text>
-          <Pressable onPress={onClose} hitSlop={12}>
-            <Text style={styles.close}>Kész</Text>
+          <Text style={styles.title}>
+            {pending ? 'Gramm' : customOpen ? 'Ismeretlen' : `Keresés · ${meal}`}
+          </Text>
+          <Pressable onPress={exitAll} hitSlop={12}>
+            <Text style={styles.close}>Bezár</Text>
           </Pressable>
         </View>
-        <TextInput
-          style={styles.input}
-          placeholder="Étel neve…"
-          placeholderTextColor="#5a6a7a"
-          value={q}
-          onChangeText={setQ}
-          autoFocus
-          returnKeyType="search"
-        />
-        <View style={styles.eanRow}>
-          <TextInput
-            style={[styles.input, { flex: 1, marginBottom: 0 }]}
-            placeholder="EAN / vonalkód"
-            placeholderTextColor="#5a6a7a"
-            value={ean}
-            onChangeText={setEan}
-            keyboardType="number-pad"
-          />
-          <Pressable style={styles.eanBtn} onPress={doEan}>
-            <Text style={styles.eanBtnText}>OFF</Text>
-          </Pressable>
-          <Pressable style={styles.scanBtn} onPress={() => setScanOpen(true)}>
-            <Text style={styles.eanBtnText}>Scan</Text>
-          </Pressable>
-        </View>
-        {scanAgain && !scanOpen && (
-          <Pressable style={styles.again} onPress={() => setScanOpen(true)}>
-            <Text style={styles.againText}>↗ Újra scannelés</Text>
-          </Pressable>
-        )}
-        {loading && <ActivityIndicator color="#3d9cf0" style={{ marginVertical: 8 }} />}
-        {customOpen && (
+
+        {pending ? (
+          <View style={styles.confirm}>
+            <Text style={styles.confirmName}>{pending.name}</Text>
+            <Text style={styles.confirmMeta}>
+              {pending.kcal100} kcal/100g
+              {pending.brand ? ` · ${pending.brand}` : ''}
+            </Text>
+            <TextInput
+              ref={gramsRef}
+              style={styles.input}
+              value={grams}
+              onChangeText={setGrams}
+              keyboardType="decimal-pad"
+              selectTextOnFocus
+              returnKeyType="done"
+              onSubmitEditing={confirmGrams}
+              autoFocus
+            />
+            <Text style={styles.unitHint}>gramm</Text>
+            <Pressable style={styles.primary} onPress={confirmGrams}>
+              <Text style={styles.primaryText}>Mentés{loopScan ? ' → újra scan' : ''}</Text>
+            </Pressable>
+            <Pressable style={styles.ghost} onPress={skipPending}>
+              <Text style={styles.ghostText}>
+                {loopScan ? 'Kihagy → kamera' : 'Mégsem'}
+              </Text>
+            </Pressable>
+          </View>
+        ) : customOpen ? (
           <View style={styles.custom}>
             <Text style={styles.customTitle}>Ismeretlen EAN — kézi kcal/100g</Text>
             <TextInput
@@ -168,37 +230,82 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
               keyboardType="decimal-pad"
             />
             <Pressable style={styles.primary} onPress={saveCustom}>
-              <Text style={styles.primaryText}>Mentés + hozzáadás</Text>
+              <Text style={styles.primaryText}>Tovább → gramm</Text>
+            </Pressable>
+            <Pressable style={styles.ghost} onPress={cancelCustom}>
+              <Text style={styles.ghostText}>{loopScan ? 'Mégsem → kamera' : 'Mégsem'}</Text>
             </Pressable>
           </View>
+        ) : (
+          <>
+            <TextInput
+              style={styles.input}
+              placeholder="Étel neve…"
+              placeholderTextColor="#5a6a7a"
+              value={q}
+              onChangeText={setQ}
+              autoFocus={!startWithScan}
+              returnKeyType="search"
+            />
+            <View style={styles.eanRow}>
+              <TextInput
+                style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                placeholder="EAN / vonalkód"
+                placeholderTextColor="#5a6a7a"
+                value={ean}
+                onChangeText={setEan}
+                keyboardType="number-pad"
+              />
+              <Pressable style={styles.eanBtn} onPress={doEan}>
+                <Text style={styles.eanBtnText}>OFF</Text>
+              </Pressable>
+              <Pressable
+                style={styles.scanBtn}
+                onPress={() => {
+                  setLoopScan(true);
+                  setScanOpen(true);
+                }}
+              >
+                <Text style={styles.eanBtnText}>Scan</Text>
+              </Pressable>
+            </View>
+            {loading && <ActivityIndicator color="#3d9cf0" style={{ marginVertical: 8 }} />}
+            <FlatList
+              data={hits}
+              keyExtractor={(i) => i.id}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <Pressable
+                  style={styles.hit}
+                  onPress={() => {
+                    setPending(item);
+                    setGrams('100');
+                    setLoopScan(false);
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.hitName}>{item.name}</Text>
+                    <Text style={styles.hitMeta}>
+                      {item.kcal100} kcal/100g · {item.source}
+                      {item.brand ? ` · ${item.brand}` : ''}
+                    </Text>
+                  </View>
+                  <Text style={styles.plus}>+</Text>
+                </Pressable>
+              )}
+              ListEmptyComponent={
+                q.trim() && !loading ? (
+                  <Text style={styles.empty}>Nincs találat — próbálj EAN-t / Scan-t.</Text>
+                ) : null
+              }
+            />
+          </>
         )}
-        <FlatList
-          data={hits}
-          keyExtractor={(i) => i.id}
-          keyboardShouldPersistTaps="handled"
-          renderItem={({ item }) => (
-            <Pressable style={styles.hit} onPress={() => onPick(item, 100)}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.hitName}>{item.name}</Text>
-                <Text style={styles.hitMeta}>
-                  {item.kcal100} kcal/100g · {item.source}
-                  {item.brand ? ` · ${item.brand}` : ''}
-                </Text>
-              </View>
-              <Text style={styles.plus}>+</Text>
-            </Pressable>
-          )}
-          ListEmptyComponent={
-            q.trim() && !loading ? (
-              <Text style={styles.empty}>Nincs találat — próbálj EAN-t / Scan-t.</Text>
-            ) : null
-          }
-        />
       </View>
 
       <BarcodeScanModal
         visible={scanOpen}
-        onClose={() => setScanOpen(false)}
+        onClose={exitScanOnly}
         onCode={(code) => lookupCode(code, true)}
       />
     </Modal>
@@ -235,8 +342,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   eanBtnText: { color: '#e8eef4', fontWeight: '700' },
-  again: { marginBottom: 10, alignSelf: 'flex-start' },
-  againText: { color: '#3ecf8e', fontWeight: '600' },
   hit: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -250,11 +355,24 @@ const styles = StyleSheet.create({
   empty: { color: '#8b9aab', textAlign: 'center', marginTop: 24 },
   custom: { backgroundColor: '#1a222c', borderRadius: 12, padding: 12, marginBottom: 12 },
   customTitle: { color: '#f0b429', marginBottom: 8, fontWeight: '600' },
+  confirm: { paddingTop: 8 },
+  confirmName: { color: '#e8eef4', fontSize: 22, fontWeight: '700', marginBottom: 4 },
+  confirmMeta: { color: '#8b9aab', marginBottom: 16 },
+  unitHint: { color: '#8b9aab', marginTop: -6, marginBottom: 16 },
   primary: {
     backgroundColor: '#3d9cf0',
     borderRadius: 12,
-    paddingVertical: 12,
+    paddingVertical: 14,
     alignItems: 'center',
+    marginBottom: 10,
   },
   primaryText: { color: '#061018', fontWeight: '700', fontSize: 16 },
+  ghost: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#2a3542',
+  },
+  ghostText: { color: '#8b9aab', fontWeight: '600' },
 });

@@ -103,11 +103,16 @@ export default function App() {
     );
   }, [entries]);
 
-  async function addFood(food: Food, grams: number) {
+  async function addFood(food: Food, grams: number, opts?: { keepOpen?: boolean }) {
     if (!api) return;
     const created = await api.addEntry({ date, meal, food, grams });
-    setSearchOpen(false);
     await reload();
+    if (opts?.keepOpen) {
+      setScanDirect(true);
+      return;
+    }
+    setSearchOpen(false);
+    setScanDirect(false);
     setFocusEntryId(created.id);
   }
 
