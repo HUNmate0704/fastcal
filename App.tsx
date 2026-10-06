@@ -281,7 +281,7 @@ export default function App() {
           <View style={{ alignItems: 'center' }}>
             <View style={styles.titleRow}>
               <Text style={styles.title}>Fastcal</Text>
-              <Pressable onPress={() => setSettingsOpen(true)} hitSlop={10} style={styles.gearBtn}>
+              <Pressable onPress={() => setSettingsOpen(true)} hitSlop={14} style={styles.gearBtn}>
                 <Text style={styles.gear}>⚙</Text>
               </Pressable>
               <Pressable onPress={shareDay} hitSlop={10} style={styles.gearBtn}>
@@ -325,7 +325,7 @@ export default function App() {
           </Pressable>
         ) : null}
 
-        <BottomBar totals={totals} goal={kcalGoal} placement="top" />
+        <BottomBar totals={totals} goal={kcalGoal} placement="top" onGoalPress={() => setSettingsOpen(true)} />
 
         {/* MID: meal tabs + diary */}
         <View style={styles.mealTabsWrap}>
@@ -428,9 +428,17 @@ export default function App() {
                 <Text style={styles.primaryText}>Scan</Text>
               </Pressable>
             </View>
-            <Pressable style={styles.ghost} onPress={copyYday}>
-              <Text style={styles.ghostText}>Tegnapi nap másolása</Text>
-            </Pressable>
+            <View style={styles.actionRow}>
+              <Pressable style={[styles.ghost, styles.actionHalf]} onPress={copyYday}>
+                <Text style={styles.ghostText}>Tegnap másol</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.goalDock, styles.actionHalf]}
+                onPress={() => setSettingsOpen(true)}
+              >
+                <Text style={styles.goalDockText}>Cél · {kcalGoal}</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -482,9 +490,9 @@ const styles = StyleSheet.create({
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { color: '#e8eef4', fontSize: 18, fontWeight: '700' },
-  gearBtn: { padding: 2 },
-  gear: { color: '#8b9aab', fontSize: 18 },
-  share: { color: '#8b9aab', fontSize: 18, fontWeight: '700' },
+  gearBtn: { padding: 8, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  gear: { color: '#8b9aab', fontSize: 22 },
+  share: { color: '#8b9aab', fontSize: 22, fontWeight: '700' },
   date: { color: '#8b9aab', fontSize: 13, marginTop: 2 },
   nav: { color: '#3d9cf0', fontSize: 32, fontWeight: '300', paddingHorizontal: 8 },
   weekStrip: {
@@ -589,6 +597,17 @@ const styles = StyleSheet.create({
     borderColor: '#2a3542',
   },
   ghostText: { color: '#8b9aab', fontWeight: '600' },
+  goalDock: {
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    backgroundColor: '#1a2a3a',
+    borderWidth: 1,
+    borderColor: '#3d9cf0',
+    minHeight: 48,
+    justifyContent: 'center',
+  },
+  goalDockText: { color: '#3d9cf0', fontWeight: '800', fontSize: 15 },
   card: {
     marginBottom: 12,
     paddingHorizontal: 14,

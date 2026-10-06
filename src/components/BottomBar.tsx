@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import type { DayTotals } from '../types';
 
 export function BottomBar({
@@ -7,11 +7,13 @@ export function BottomBar({
   goal = 2200,
   bottomInset = 0,
   placement = 'bottom',
+  onGoalPress,
 }: {
   totals: DayTotals;
   goal?: number;
   bottomInset?: number;
   placement?: 'top' | 'bottom';
+  onGoalPress?: () => void;
 }) {
   const safeGoal = goal > 0 ? goal : 2200;
   const pct = Math.min(100, Math.round((totals.kcal / safeGoal) * 100));
@@ -30,6 +32,16 @@ export function BottomBar({
       <View style={styles.row}>
         <Text style={styles.kcal}>{totals.kcal}</Text>
         <Text style={styles.kcalUnit}> / {safeGoal} kcal</Text>
+        {onGoalPress ? (
+          <Pressable
+            onPress={onGoalPress}
+            hitSlop={8}
+            style={styles.goalBtn}
+            accessibilityLabel="Napi kalória cél szerkesztése"
+          >
+            <Text style={styles.goalBtnText}>Cél ✎</Text>
+          </Pressable>
+        ) : null}
       </View>
       <View style={styles.barBg}>
         <View
@@ -78,9 +90,21 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#2a3542',
   },
-  row: { flexDirection: 'row', alignItems: 'baseline' },
+  row: { flexDirection: 'row', alignItems: 'center' },
   kcal: { color: '#e8eef4', fontSize: 24, fontWeight: '700', letterSpacing: -0.5 },
   kcalUnit: { color: '#8b9aab', fontSize: 14, marginLeft: 4 },
+  goalBtn: {
+    marginLeft: 'auto',
+    backgroundColor: '#243040',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    minHeight: 44,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#3d9cf0',
+  },
+  goalBtnText: { color: '#3d9cf0', fontWeight: '800', fontSize: 15 },
   barBg: {
     height: 4,
     backgroundColor: '#243040',
