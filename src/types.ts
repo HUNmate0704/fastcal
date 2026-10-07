@@ -9,7 +9,7 @@ export type Food = {
   protein100: number;
   fat100: number;
   carbs100: number;
-  source: 'usda' | 'off' | 'custom' | 'history' | 'chain';
+  source: 'usda' | 'off' | 'custom' | 'history' | 'chain' | 'grocery';
   ean?: string;
   /** grams in one serving when known (OFF or custom) */
   servingGrams?: number;

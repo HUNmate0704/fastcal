@@ -1,0 +1,188 @@
+{
+  "_comment": "Offline HU grocery seed for OFF miss/incomplete EANs. Per-100g from manufacturer or HU retail pages. Do not invent figures.",
+  "_sources": [
+    {
+      "brand": "Cerbona",
+      "url": "https://www.cerbona.com/termekek/kaves-muzliszelet",
+      "asOf": "2026-10-07"
+    },
+    {
+      "brand": "Detki",
+      "url": "https://www.kamraellato.hu/Detki-King-kreker-sajtos---100g",
+      "asOf": "2026-10-07"
+    },
+    {
+      "brand": "Detki",
+      "url": "https://coopshop.hu/termek/detki-mese-mezes-linzer-kakaos-etbevonomasszaval-felig-martva-180-g/",
+      "asOf": "2026-10-07"
+    },
+    {
+      "brand": "Milfina",
+      "url": "https://hazhozabc.hu/termek/laktozmentes-uht-tej-28-1l-milfina",
+      "asOf": "2026-10-07"
+    },
+    {
+      "brand": "Nádudvari",
+      "url": "https://nadudvari.hu/termekeink/hazias-korozott-135-g/",
+      "asOf": "2026-10-07"
+    },
+    {
+      "brand": "Pick",
+      "url": "https://pick.hu/termek/pick-teliszalami",
+      "asOf": "2026-10-07"
+    },
+    {
+      "brand": "Pick",
+      "url": "https://coopshop.hu/termek/pick-kenomajas-150-g/",
+      "asOf": "2026-10-07"
+    },
+    {
+      "brand": "Sport",
+      "url": "https://shop.hosso.hu/sport-szelet-51gr-xxl-1795",
+      "asOf": "2026-10-07"
+    }
+  ],
+  "items": [
+    {
+      "id": "hu-pick-eredeti-teliszalami",
+      "name": "Pick Eredeti téliszalámi",
+      "brand": "Pick",
+      "kcal100": 524,
+      "protein100": 25,
+      "fat100": 47,
+      "carbs100": 0.5,
+      "source": "grocery",
+      "meta": {
+        "ean": "5998003124043",
+        "sourceUrl": "https://pick.hu/termek/pick-teliszalami",
+        "asOf": "2026-10-07",
+        "offStatus": "incomplete"
+      }
+    },
+    {
+      "id": "hu-pick-kenomajas",
+      "name": "Pick Kenőmájas",
+      "brand": "Pick",
+      "kcal100": 288,
+      "protein100": 12,
+      "fat100": 26,
+      "carbs100": 1.5,
+      "source": "grocery",
+      "meta": {
+        "ean": "5998003126061",
+        "sourceUrl": "https://coopshop.hu/termek/pick-kenomajas-150-g/",
+        "asOf": "2026-10-07",
+        "offStatus": "incomplete"
+      },
+      "servingGrams": 150,
+      "servingLabel": "1 db (150 g)"
+    },
+    {
+      "id": "hu-nadudvari-hazias-korozott",
+      "name": "Nádudvari Házias körözött",
+      "brand": "Nádudvari",
+      "kcal100": 151,
+      "protein100": 9.9,
+      "fat100": 10,
+      "carbs100": 4.6,
+      "source": "grocery",
+      "meta": {
+        "ean": "5998202942370",
+        "sourceUrl": "https://nadudvari.hu/termekeink/hazias-korozott-135-g/",
+        "asOf": "2026-10-07",
+        "offStatus": "incomplete"
+      },
+      "servingGrams": 135,
+      "servingLabel": "1 db (135 g)"
+    },
+    {
+      "id": "hu-sport-szelet-xxl",
+      "name": "Sport szelet XXL",
+      "brand": "Sport",
+      "kcal100": 445,
+      "protein100": 5.1,
+      "fat100": 18.0,
+      "carbs100": 65.5,
+      "source": "grocery",
+      "meta": {
+        "ean": "7622210145413",
+        "sourceUrl": "https://shop.hosso.hu/sport-szelet-51gr-xxl-1795",
+        "asOf": "2026-10-07",
+        "offStatus": "incomplete"
+      },
+      "servingGrams": 51,
+      "servingLabel": "1 db (51 g)"
+    },
+    {
+      "id": "hu-cerbona-muzliszelet-kaves",
+      "name": "Cerbona Müzliszelet kávés",
+      "brand": "Cerbona",
+      "kcal100": 422,
+      "protein100": 4,
+      "fat100": 16.4,
+      "carbs100": 63.5,
+      "source": "grocery",
+      "meta": {
+        "ean": "5998400305540",
+        "sourceUrl": "https://www.cerbona.com/termekek/kaves-muzliszelet",
+        "asOf": "2026-10-07",
+        "offStatus": "incomplete"
+      },
+      "servingGrams": 20,
+      "servingLabel": "1 szelet (20 g)"
+    },
+    {
+      "id": "hu-detki-mese-mezes-linzer",
+      "name": "Detki Mese mézes linzer",
+      "brand": "Detki",
+      "kcal100": 505,
+      "protein100": 7.7,
+      "fat100": 25.5,
+      "carbs100": 59.6,
+      "source": "grocery",
+      "meta": {
+        "ean": "5997380362697",
+        "sourceUrl": "https://coopshop.hu/termek/detki-mese-mezes-linzer-kakaos-etbevonomasszaval-felig-martva-180-g/",
+        "asOf": "2026-10-07",
+        "offStatus": "incomplete",
+        "note": "OFF macros differ from current retail label; seed uses CoopShop retail panel"
+      }
+    },
+    {
+      "id": "hu-detki-king-kreker-sajtos",
+      "name": "Detki King kréker sajtos",
+      "brand": "Detki",
+      "kcal100": 454,
+      "protein100": 9.2,
+      "fat100": 15.2,
+      "carbs100": 68.8,
+      "source": "grocery",
+      "meta": {
+        "ean": "5997380351233",
+        "sourceUrl": "https://www.kamraellato.hu/Detki-King-kreker-sajtos---100g",
+        "asOf": "2026-10-07",
+        "offStatus": "incomplete",
+        "note": "OFF macros stale vs current retail; seed uses kamraellato retail panel"
+      },
+      "servingGrams": 100,
+      "servingLabel": "1 csomag (100 g)"
+    },
+    {
+      "id": "hu-milfina-enjoy-free-tej-28",
+      "name": "Milfina Enjoy Free Tej 2,8%",
+      "brand": "Milfina",
+      "kcal100": 56,
+      "protein100": 3.0,
+      "fat100": 2.8,
+      "carbs100": 4.6,
+      "source": "grocery",
+      "meta": {
+        "ean": "24097307",
+        "sourceUrl": "https://hazhozabc.hu/termek/laktozmentes-uht-tej-28-1l-milfina",
+        "asOf": "2026-10-07",
+        "offStatus": "incomplete",
+        "note": "kcal from hazhozabc retail; P/F/C also present on OFF incomplete record"
+      }
+    }
+  ]
+}
