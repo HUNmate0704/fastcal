@@ -83,6 +83,7 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
     const t = setTimeout(async () => {
       if (!q.trim()) {
         setHits([]);
+        setLoading(false);
         return;
       }
       setLoading(true);
@@ -91,7 +92,7 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
         setHits(res);
         setLoading(false);
       }
-    }, 120);
+    }, 50);
     return () => {
       cancelled = true;
       clearTimeout(t);

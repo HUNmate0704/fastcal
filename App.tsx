@@ -111,23 +111,33 @@ export default function App() {
     };
   }, []);
 
-  const reload = useCallback(async () => {
+  const reloadChips = useCallback(async () => {
     if (!api) return;
-    const [ents, y, fq, rc] = await Promise.all([
-      api.getEntries(date),
+    const [y, fq, rc] = await Promise.all([
       api.yesterdaySameMeal(date, meal),
       api.frequentFoods(6),
       api.recentFoods(8),
     ]);
-    setEntries(ents);
     setYesterday(y);
     setFrequent(fq);
     setRecent(rc);
   }, [api, date, meal]);
 
+  const reload = useCallback(async () => {
+    if (!api) return;
+    const ents = await api.getEntries(date);
+    setEntries(ents);
+    void reloadChips();
+  }, [api, date, reloadChips]);
+
   useEffect(() => {
-    reload();
-  }, [reload]);
+    if (!api) return;
+    void (async () => {
+      const ents = await api.getEntries(date);
+      setEntries(ents);
+      await reloadChips();
+    })();
+  }, [api, date, meal, reloadChips]);
 
   useEffect(() => {
     if (!api) return;
@@ -147,7 +157,7 @@ export default function App() {
       .catch(() => {
         /* ignore */
       });
-  }, [api, date, entries.length]);
+  }, [api, date]);
 
   const totals = useMemo(() => {
     return entries.reduce(
@@ -172,8 +182,15 @@ export default function App() {
 
   async function addFood(food: Food, grams: number, opts?: { keepOpen?: boolean }) {
     if (!api) return;
+    const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
     const created = await api.addEntry({ date, meal, food, grams });
-    await reload();
+    // Optimistic: list updates immediately; chips refresh in background
+    setEntries((prev) => [...prev, created]);
+    void reloadChips();
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      const ms = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0;
+      console.log(`[ux] addFood ${Math.round(ms)}ms · ${food.name}`);
+    }
     if (opts?.keepOpen) {
       setScanDirect(true);
       return;

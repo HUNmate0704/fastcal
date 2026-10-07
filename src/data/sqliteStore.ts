@@ -129,11 +129,17 @@ async function searchLocal(q: string): Promise<SearchHit[]> {
     );
   }
 
-  // history-used foods first: bump score if appeared in entries
-  const used = await db.getAllAsync<{ food_id: string; c: number }>(
-    `SELECT food_id, COUNT(*) as c FROM entries GROUP BY food_id`
-  );
-  const useMap = new Map(used.map((u) => [u.food_id, u.c]));
+  // history boost only for hit ids (avoid full table GROUP BY)
+  const ids = rows.map((r) => r.id);
+  const useMap = new Map<string, number>();
+  if (ids.length) {
+    const placeholders = ids.map(() => '?').join(',');
+    const used = await db.getAllAsync<{ food_id: string; c: number }>(
+      `SELECT food_id, COUNT(*) as c FROM entries WHERE food_id IN (${placeholders}) GROUP BY food_id`,
+      ...ids
+    );
+    for (const u of used) useMap.set(u.food_id, u.c);
+  }
 
   const hits: SearchHit[] = rows.map((r) => {
     const f = rowToFood(r);
@@ -259,41 +265,39 @@ export async function createSqliteApi(): Promise<DataApi> {
 
     async search(q) {
       const local = await searchLocal(q);
-      // Offline-first: local first. Net only to enrich if thin.
-      if (local.length >= 8) return local.slice(0, 24);
+      // Never block UI on OFF when local has anything — chips/seed must feel instant.
+      if (local.length > 0) return local.slice(0, 24);
       try {
         const remote = await searchOff(q, 10);
         for (const f of remote) {
           await upsertFood(f);
         }
-        const merged = new Map<string, SearchHit>();
-        for (const h of local) merged.set(h.id, h);
-        for (const f of remote) {
-          if (merged.has(f.id)) continue;
-          // Keep HU/EU (huPreferScore) already on the hit; add name-match boosts vs query.
-          const base = typeof f.score === 'number' ? f.score : 1;
-          merged.set(f.id, { ...f, score: base + nameMatchBoost(f.name, q) });
-        }
-        return [...merged.values()]
+        return remote
+          .map((f) => {
+            const base = typeof f.score === 'number' ? f.score : 1;
+            return { ...f, score: base + nameMatchBoost(f.name, q) };
+          })
           .sort((a, b) => (b.score || 0) - (a.score || 0))
           .slice(0, 24);
       } catch {
-        return local.slice(0, 24);
+        return [];
       }
     },
 
     async recentFoods(limit = 8) {
       const db = await getDb();
-      const rows = await db.getAllAsync<{ food_id: string }>(
-        `SELECT food_id FROM entries ORDER BY created_at DESC LIMIT 80`
+      const rows = await db.getAllAsync<FoodRow>(
+        `SELECT f.* FROM entries e
+         JOIN foods f ON f.id = e.food_id
+         ORDER BY e.created_at DESC
+         LIMIT 80`
       );
       const out: Food[] = [];
       const seen = new Set<string>();
-      for (const r of rows) {
-        if (seen.has(r.food_id)) continue;
-        seen.add(r.food_id);
-        const food = await db.getFirstAsync<FoodRow>(`SELECT * FROM foods WHERE id = ?`, r.food_id);
-        if (food) out.push({ ...rowToFood(food), source: 'history' });
+      for (const food of rows) {
+        if (seen.has(food.id)) continue;
+        seen.add(food.id);
+        out.push({ ...rowToFood(food), source: 'history' });
         if (out.length >= limit) break;
       }
       return out;
@@ -301,17 +305,16 @@ export async function createSqliteApi(): Promise<DataApi> {
 
     async frequentFoods(limit = 6) {
       const db = await getDb();
-      const rows = await db.getAllAsync<{ food_id: string; c: number; g: number }>(
-        `SELECT food_id, COUNT(*) as c, AVG(grams) as g
-         FROM entries GROUP BY food_id ORDER BY c DESC LIMIT ?`,
+      const rows = await db.getAllAsync<FoodRow & { c: number; g: number }>(
+        `SELECT f.*, COUNT(*) as c, AVG(e.grams) as g
+         FROM entries e
+         JOIN foods f ON f.id = e.food_id
+         GROUP BY e.food_id
+         ORDER BY c DESC
+         LIMIT ?`,
         limit
       );
-      const out: Array<Food & { defaultGrams: number }> = [];
-      for (const r of rows) {
-        const food = await db.getFirstAsync<FoodRow>(`SELECT * FROM foods WHERE id = ?`, r.food_id);
-        if (food) out.push({ ...rowToFood(food), defaultGrams: Math.round(r.g) });
-      }
-      return out;
+      return rows.map((r) => ({ ...rowToFood(r), defaultGrams: Math.round(r.g) }));
     },
 
     async yesterdaySameMeal(date, meal) {

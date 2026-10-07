@@ -2,6 +2,9 @@ import type { Food, SearchHit } from '../types';
 
 const UA = 'FastcalPOC/0.1 (penzgyar; offline-first calorie diary)';
 
+/** Abort OFF network calls so search/EAN never hang the UI. */
+export const OFF_FETCH_TIMEOUT_MS = 3000;
+
 type OffProduct = {
   code?: string;
   product_name?: string;
@@ -97,15 +100,33 @@ export function huPreferScore(p: OffProduct): number {
   return s;
 }
 
+async function offFetch(url: string): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), OFF_FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, {
+      headers: { 'User-Agent': UA, Accept: 'application/json' },
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function fetchOffByEan(ean: string): Promise<Food | null> {
   const code = ean.replace(/\D/g, '');
   if (code.length < 8) return null;
   const url = `https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=code,product_name,product_name_hu,brands,nutriments,countries_tags,languages_tags,serving_size,serving_quantity,product_quantity,product_quantity_unit`;
-  const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' } });
-  if (!res.ok) return null;
-  const data = (await res.json()) as { status?: number; product?: OffProduct };
-  if (data.status !== 1 || !data.product) return null;
-  return productToFood(data.product, code);
+  try {
+    const res = await offFetch(url);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { status?: number; product?: OffProduct };
+    if (data.status !== 1 || !data.product) return null;
+    return productToFood(data.product, code);
+  } catch {
+    // timeout / network — UI can fall back to manual kcal/100g
+    return null;
+  }
 }
 
 export async function searchOff(q: string, limit = 12): Promise<SearchHit[]> {
@@ -121,20 +142,25 @@ export async function searchOff(q: string, limit = 12): Promise<SearchHit[]> {
       'code,product_name,product_name_hu,brands,nutriments,countries_tags,languages_tags,serving_size,serving_quantity,product_quantity,product_quantity_unit',
   });
   const url = `https://world.openfoodfacts.org/cgi/search.pl?${params}`;
-  const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' } });
-  if (!res.ok) return [];
-  const data = (await res.json()) as { products?: OffProduct[] };
-  const products = data.products || [];
-  const ranked = [...products].sort((a, b) => huPreferScore(b) - huPreferScore(a));
-  const out: SearchHit[] = [];
-  const seen = new Set<string>();
-  for (const p of ranked) {
-    const f = productToFood(p);
-    if (!f || seen.has(f.id)) continue;
-    seen.add(f.id);
-    // keep below heavy local history (+4…), above bare OFF filler
-    out.push({ ...f, score: 1 + huPreferScore(p) });
-    if (out.length >= limit) break;
+  try {
+    const res = await offFetch(url);
+    if (!res.ok) return [];
+    const data = (await res.json()) as { products?: OffProduct[] };
+    const products = data.products || [];
+    const ranked = [...products].sort((a, b) => huPreferScore(b) - huPreferScore(a));
+    const out: SearchHit[] = [];
+    const seen = new Set<string>();
+    for (const p of ranked) {
+      const f = productToFood(p);
+      if (!f || seen.has(f.id)) continue;
+      seen.add(f.id);
+      // keep below heavy local history (+4…), above bare OFF filler
+      out.push({ ...f, score: 1 + huPreferScore(p) });
+      if (out.length >= limit) break;
+    }
+    return out;
+  } catch {
+    // timeout / network — caller falls back to local
+    return [];
   }
-  return out;
 }
