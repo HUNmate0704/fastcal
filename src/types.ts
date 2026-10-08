@@ -53,6 +53,10 @@ export type DataApi = {
   copyMeal(fromDate: string, toDate: string, meal: Meal): Promise<void>;
   copyDay(fromDate: string, toDate: string): Promise<void>;
   search(q: string): Promise<SearchHit[]>;
+  /** Local DB only — instant, never touches the network. */
+  searchLocal(q: string): Promise<SearchHit[]>;
+  /** Open Food Facts lookup; caches hits locally. Resolves [] on error/timeout. */
+  searchRemote(q: string): Promise<SearchHit[]>;
   recentFoods(limit?: number): Promise<Food[]>;
   frequentFoods(limit?: number): Promise<Array<Food & { defaultGrams: number }>>;
   yesterdaySameMeal(date: string, meal: Meal): Promise<DiaryEntry[]>;

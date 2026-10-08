@@ -264,9 +264,18 @@ export async function createSqliteApi(): Promise<DataApi> {
     },
 
     async search(q) {
-      const local = await searchLocal(q);
+      const local = await api.searchLocal(q);
       // Never block UI on OFF when local has anything — chips/seed must feel instant.
-      if (local.length > 0) return local.slice(0, 24);
+      if (local.length > 0) return local;
+      return api.searchRemote(q);
+    },
+
+    async searchLocal(q) {
+      const local = await searchLocal(q);
+      return local.slice(0, 24);
+    },
+
+    async searchRemote(q) {
       try {
         const remote = await searchOff(q, 10);
         for (const f of remote) {

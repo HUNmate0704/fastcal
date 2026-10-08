@@ -29,6 +29,7 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [loading, setLoading] = useState(false);
+  const [remoteLoading, setRemoteLoading] = useState(false);
   const [ean, setEan] = useState('');
   const [customOpen, setCustomOpen] = useState(false);
   const [cName, setCName] = useState('');
@@ -81,23 +82,37 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
   useEffect(() => {
     let cancelled = false;
     const t = setTimeout(async () => {
-      if (!q.trim()) {
+      const term = q.trim();
+      setRemoteLoading(false);
+      if (!term) {
         setHits([]);
         setLoading(false);
         return;
       }
-      setLoading(true);
-      const res = await api.search(q);
-      if (!cancelled) {
-        setHits(res);
-        setLoading(false);
-      }
+      // Local first: show instantly (even if empty) — never wait for OFF here.
+      const local = await api.searchLocal(term);
+      if (cancelled) return;
+      setHits(local);
+      setLoading(false);
+      if (local.length > 0) return;
+      // Nothing local: OFF runs in the background and fills the list if it lands.
+      setRemoteLoading(true);
+      const remote = await api.searchRemote(term);
+      if (cancelled) return;
+      setRemoteLoading(false);
+      if (remote.length > 0) setHits(remote);
     }, 50);
     return () => {
       cancelled = true;
       clearTimeout(t);
     };
   }, [q, api]);
+
+  function openCustomFromQuery() {
+    setEan('');
+    setCName(q.trim());
+    setCustomOpen(true);
+  }
 
   function openPending(food: Food) {
     setPending(food);
@@ -211,7 +226,9 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
                 ? 'Adag'
                 : 'Gramm'
               : customOpen
-                ? 'Ismeretlen'
+                ? ean.trim()
+                  ? 'Ismeretlen'
+                  : 'Saját étel'
                 : `Keresés · ${meal}`}
           </Text>
           <Pressable onPress={exitAll} hitSlop={12}>
@@ -310,7 +327,9 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
           </KeyboardAvoidingView>
         ) : customOpen ? (
           <View style={styles.custom}>
-            <Text style={styles.customTitle}>Ismeretlen EAN — kézi kcal/100g</Text>
+            <Text style={styles.customTitle}>
+              {ean.trim() ? 'Ismeretlen EAN — kézi kcal/100g' : 'Saját étel — kcal/100g'}
+            </Text>
             <TextInput
               style={styles.input}
               placeholder="Név"
@@ -400,7 +419,19 @@ export function SearchSheet({ visible, meal, api, startWithScan, onClose, onPick
               )}
               ListEmptyComponent={
                 q.trim() && !loading ? (
-                  <Text style={styles.empty}>Nincs találat — próbálj EAN-t / Scan-t.</Text>
+                  <View style={styles.emptyBox}>
+                    <Text style={styles.empty}>
+                      {remoteLoading
+                        ? 'Helyben nincs találat — keresés az Open Food Facts-ben…'
+                        : 'Nincs találat — próbálj EAN-t / Scan-t.'}
+                    </Text>
+                    {remoteLoading && (
+                      <ActivityIndicator color="#3d9cf0" style={{ marginTop: 8 }} />
+                    )}
+                    <Pressable style={styles.customBtn} onPress={openCustomFromQuery}>
+                      <Text style={styles.customBtnText}>+ Saját étel: „{q.trim()}”</Text>
+                    </Pressable>
+                  </View>
                 ) : null
               }
             />
@@ -458,6 +489,18 @@ const styles = StyleSheet.create({
   hitMeta: { color: '#8b9aab', fontSize: 12, marginTop: 2 },
   plus: { color: '#3ecf8e', fontSize: 24, fontWeight: '600', paddingLeft: 8 },
   empty: { color: '#8b9aab', textAlign: 'center', marginTop: 24 },
+  emptyBox: { alignItems: 'center' },
+  customBtn: {
+    marginTop: 16,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderWidth: 1,
+    borderColor: '#3ecf8e',
+    alignSelf: 'stretch',
+    alignItems: 'center',
+  },
+  customBtnText: { color: '#3ecf8e', fontWeight: '700', fontSize: 16 },
   custom: { backgroundColor: '#1a222c', borderRadius: 12, padding: 12, marginBottom: 12 },
   customTitle: { color: '#f0b429', marginBottom: 8, fontWeight: '600' },
   confirm: { paddingTop: 8 },

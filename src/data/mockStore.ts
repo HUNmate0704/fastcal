@@ -124,6 +124,12 @@ export const mockApi: DataApi = {
     }
     return hits.sort((a, b) => (b.score || 0) - (a.score || 0));
   },
+  async searchLocal(q) {
+    return mockApi.search(q);
+  },
+  async searchRemote(_q) {
+    return [];
+  },
   async recentFoods(limit = 8) {
     const seen = new Set<string>();
     const out: Food[] = [];
