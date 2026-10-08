@@ -344,6 +344,37 @@ ${FOODS_TRI_AU}
     seededThisLaunch = true;
   }
 
+  // 3260f06/4d4bca4 seeded the generic USDA items of the missing-words seed with
+  // brand 'USDA FDC'; source info lives in meta now. Clear it once on those seed
+  // ids (only while still the seed value) and refresh name_norm; the
+  // AFTER UPDATE OF name, brand triggers re-index FTS + trigram.
+  const usdaBrandCleaned = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM meta WHERE key = 'usda_brand_cleanup_v1'`
+  );
+  if (!usdaBrandCleaned) {
+    const usdaIds = (huMissingWordsSeed as { items: Array<{ id: string; source?: string }> }).items
+      .filter((f) => f.source === 'usda')
+      .map((f) => f.id);
+    const stale = usdaIds.length
+      ? await db.getAllAsync<{ id: string; name: string }>(
+          `SELECT id, name FROM foods WHERE brand = 'USDA FDC' AND id IN (${usdaIds.map(() => '?').join(',')})`,
+          ...usdaIds
+        )
+      : [];
+    await db.withTransactionAsync(async () => {
+      for (const r of stale) {
+        await db.runAsync(
+          `UPDATE foods SET brand = NULL, name_norm = ? WHERE id = ?`,
+          foodNameNorm(r.name),
+          r.id
+        );
+      }
+      await db.runAsync(
+        `INSERT OR REPLACE INTO meta (key, value) VALUES ('usda_brand_cleanup_v1', '1')`
+      );
+    });
+  }
+
   // Existing installs: fill name_norm once for rows written before the column
   // existed (works without FTS5, e.g. web). New writes fill it directly.
   const normDone = await db.getFirstAsync<{ value: string }>(

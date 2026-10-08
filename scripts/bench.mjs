@@ -157,6 +157,7 @@ async function benchColdStart() {
         ftsRows: WEB_ALL ? null : db.prepare('SELECT COUNT(*) c FROM foods_fts').get().c,
         triRows: WEB_ALL ? null : db.prepare('SELECT COUNT(*) c FROM foods_tri').get().c,
         nameNormNull: db.prepare('SELECT COUNT(*) c FROM foods WHERE name_norm IS NULL').get().c,
+        usdaFdcBrand: db.prepare(`SELECT COUNT(*) c FROM foods WHERE brand = 'USDA FDC'`).get().c,
         entries: db.prepare('SELECT COUNT(*) c FROM entries').get().c,
         metaKeys: db.prepare('SELECT key FROM meta ORDER BY key').all().map((r) => r.key),
         sqliteVersion: db.prepare('SELECT sqlite_version() v').get().v,
@@ -172,6 +173,10 @@ async function benchColdStart() {
           process.exitCode = 1;
         }
       }
+    }
+    if (counts.usdaFdcBrand !== 0) {
+      console.log(`ASSERT no brand 'USDA FDC': ${counts.usdaFdcBrand} rows -> FAIL`);
+      process.exitCode = 1;
     }
     rawDb().close();
     // warm launch: same (already seeded) file, new module instance
@@ -192,9 +197,13 @@ async function benchColdStart() {
     .sort((a, b) => b.medianMs - a.medianMs);
   const migration = WEB_ALL ? null : await benchMigration(false);
   const migrationWeb = await benchMigration(true);
+  const usdaBrand = WEB_ALL ? null : await benchUsdaBrandMigration(false);
+  const usdaBrandWeb = await benchUsdaBrandMigration(true);
   result.coldStart = {
     migration,
     migrationWeb,
+    usdaBrand,
+    usdaBrandWeb,
     runs: RUNS,
     firstLaunchMs: { median: r1(median(cold)), max: r1(max(cold)), all: cold.map(r1) },
     warmLaunchMs: { median: r1(median(warm)), max: r1(max(warm)), all: warm.map(r1) },
@@ -247,7 +256,7 @@ async function benchMigration(noFts) {
   db0.exec(`DROP TRIGGER IF EXISTS foods_tri_ai; DROP TRIGGER IF EXISTS foods_tri_ad; DROP TRIGGER IF EXISTS foods_tri_au;
             DROP TABLE IF EXISTS foods_tri;
             ALTER TABLE foods DROP COLUMN name_norm;
-            DELETE FROM meta WHERE key IN ('foods_tri_v1', 'foods_name_norm_v1', 'hu_missing_words_seed_v1');`);
+            DELETE FROM meta WHERE key IN ('foods_tri_v1', 'foods_name_norm_v1', 'hu_missing_words_seed_v1', 'usda_brand_cleanup_v1');`);
   if (!noFts) db0.exec(OLD_FTS_AU);
   const before = db0.prepare('SELECT COUNT(*) c FROM foods').get().c;
   db0.close();
@@ -285,6 +294,63 @@ async function benchMigration(noFts) {
   );
   if (!pass) process.exitCode = 1;
   return { pass, launchMs: r1(ms), foodsBefore: before, foodsAfter: foods, nameNormNull: nullNorm, sample, metaKeys, triHitsSzalami: tri, integrity, turoRudi, szalami };
+}
+
+const USDA_SEED_IDS = JSON.parse(readFileSync(join(ROOT, 'src/data/huMissingWordsSeed.json'), 'utf8'))
+  .items.filter((i) => i.source === 'usda').map((i) => i.id);
+
+/**
+ * Install seeded by 3260f06/4d4bca4 (missing-words USDA rows with brand 'USDA FDC'):
+ * next launch must clear the brand, refresh name_norm and keep FTS/trigram consistent.
+ */
+async function benchUsdaBrandMigration(noFts) {
+  const label = noFts ? 'web fallback' : 'native';
+  const path = dbFile(`usda-brand-${noFts ? 'web' : 'native'}`);
+  const a = await loadFresh(path, { noFts });
+  await a.mod.getDb();
+  const db0 = rawDb();
+  const ph = USDA_SEED_IDS.map(() => '?').join(',');
+  // roll back to the 4d4bca4 state (triggers re-index the brand)
+  db0.prepare(`UPDATE foods SET brand = 'USDA FDC', name_norm = name_norm || ' usda fdc' WHERE id IN (${ph})`).run(...USDA_SEED_IDS);
+  db0.exec(`DELETE FROM meta WHERE key = 'usda_brand_cleanup_v1'`);
+  const ftsUsda = (d) => (noFts ? null : d.prepare(`SELECT COUNT(*) c FROM foods_fts WHERE foods_fts MATCH 'usda'`).get().c);
+  const triUsda = (d) => (noFts ? null : d.prepare(`SELECT COUNT(*) c FROM foods_tri WHERE foods_tri MATCH '"usda"'`).get().c);
+  const pre = { brandRows: db0.prepare(`SELECT COUNT(*) c FROM foods WHERE brand = 'USDA FDC'`).get().c, fts: ftsUsda(db0), tri: triUsda(db0) };
+  db0.close();
+  const b = await loadFresh(path, { noFts });
+  const t0 = now();
+  await b.mod.getDb();
+  const ms = now() - t0;
+  const db = rawDb();
+  const brandRows = db.prepare(`SELECT COUNT(*) c FROM foods WHERE brand = 'USDA FDC'`).get().c;
+  const normUsda = db.prepare(`SELECT COUNT(*) c FROM foods WHERE name_norm LIKE '%usda%'`).get().c;
+  const sample = db.prepare(`SELECT brand, name_norm FROM foods WHERE id = 'usda-kave-espresso'`).get();
+  const meta = !!db.prepare(`SELECT 1 FROM meta WHERE key = 'usda_brand_cleanup_v1'`).get();
+  const post = { fts: ftsUsda(db), tri: triUsda(db) };
+  let integrity = 'n/a (no fts5)';
+  if (!noFts) {
+    try {
+      db.exec(`INSERT INTO foods_fts(foods_fts) VALUES('integrity-check'); INSERT INTO foods_tri(foods_tri) VALUES('integrity-check');`);
+      integrity = 'ok';
+    } catch (e) {
+      integrity = `FAIL: ${e.message}`;
+    }
+  }
+  const api = await b.mod.createSqliteApi();
+  const usdaHits = (await api.searchLocal('usda')).filter((x) => USDA_SEED_IDS.includes(x.id)).length;
+  const kave = (await api.searchLocal('kávé')).length;
+  db.close();
+  const pass =
+    pre.brandRows === USDA_SEED_IDS.length && brandRows === 0 && normUsda === 0 && sample?.brand === null &&
+    sample?.name_norm === 'kave, espresso (presszo)' && meta && usdaHits === 0 && kave > 0 &&
+    (noFts || (pre.fts > 0 && post.fts === 0 && post.tri === 0 && integrity === 'ok'));
+  console.log(
+    `USDA brand cleanup (${label}; 4d4bca4 DB with ${pre.brandRows} 'USDA FDC' rows -> next launch): ${r1(ms)} ms, brand rows ${brandRows}, ` +
+      `name_norm with "usda" ${normUsda}, sample ${JSON.stringify(sample)}, FTS "usda" ${pre.fts ?? '-'} -> ${post.fts ?? '-'}, ` +
+      `trigram "usda" ${pre.tri ?? '-'} -> ${post.tri ?? '-'}, integrity ${integrity}, searchLocal("usda") seed hits ${usdaHits}, "kávé" ${kave} -> ${pass ? 'PASS' : 'FAIL'}`
+  );
+  if (!pass) process.exitCode = 1;
+  return { pass, launchMs: r1(ms), pre, brandRows, normUsda, post, integrity, usdaHits, kave };
 }
 
 /** On-disk bytes per table/index family (needs dbstat; null if unavailable). */
@@ -437,6 +503,13 @@ async function benchProblemWords({ native, web }) {
       check: bad ? 'FAIL 0 HITS' : '',
     };
   });
+  // the generic USDA seed rows must not match "usda" through a brand anymore
+  for (const [m, api] of [['native', native], ['web', web]]) {
+    if (!api) continue;
+    const leaked = (await localSearch(api)('usda')).filter((x) => USDA_SEED_IDS.includes(x.id)).map((x) => x.id);
+    console.log(`ASSERT "usda" does not match missing-words USDA items [${m}]: ${leaked.length ? 'FAIL ' + leaked.join(',') : 'PASS'}`);
+    if (leaked.length) process.exitCode = 1;
+  }
   console.log(`\n--- problem words (seed DB, searchLocal): hits + top hit, native vs forced web fallback ---`);
   table(rows, Object.keys(rows[0]));
   if (failures.length) {

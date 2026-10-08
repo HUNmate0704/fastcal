@@ -100,7 +100,6 @@
     {
       "id": "usda-sonka-szeletelt",
       "name": "Sonka, szeletelt (általános)",
-      "brand": "USDA FDC",
       "kcal100": 164,
       "protein100": 16.6,
       "fat100": 8.8,
@@ -157,7 +156,6 @@
     {
       "id": "usda-pizza-sajtos",
       "name": "Pizza, sajtos (fagyasztott, sütve)",
-      "brand": "USDA FDC",
       "kcal100": 268,
       "protein100": 10.4,
       "fat100": 12.3,
@@ -176,7 +174,6 @@
     {
       "id": "usda-kebab-gyros-szendvics",
       "name": "Kebab / gyros szendvics (általános)",
-      "brand": "USDA FDC",
       "kcal100": 184,
       "protein100": 11.2,
       "fat100": 6.8,
@@ -336,7 +333,6 @@
     {
       "id": "usda-csoki-tejcsokolade",
       "name": "Csoki, tejcsokoládé (általános)",
-      "brand": "USDA FDC",
       "kcal100": 535,
       "protein100": 7.7,
       "fat100": 29.7,
@@ -392,7 +388,6 @@
     {
       "id": "usda-keksz-vajas",
       "name": "Keksz, vajas / omlós (általános)",
-      "brand": "USDA FDC",
       "kcal100": 464,
       "protein100": 5.4,
       "fat100": 19.6,
@@ -409,7 +404,6 @@
     {
       "id": "usda-krumpli-nyers",
       "name": "Krumpli, nyers (burgonya, héjas)",
-      "brand": "USDA FDC",
       "kcal100": 77,
       "protein100": 2.1,
       "fat100": 0.1,
@@ -429,7 +423,6 @@
     {
       "id": "usda-krumpli-sult-hasab",
       "name": "Krumpli, sült hasáb (hasábburgonya, fagyasztott, sütőben)",
-      "brand": "USDA FDC",
       "kcal100": 168,
       "protein100": 2.7,
       "fat100": 5.2,
@@ -447,7 +440,6 @@
     {
       "id": "usda-kave-fekete",
       "name": "Kávé, fekete (főzött, cukor nélkül)",
-      "brand": "USDA FDC",
       "kcal100": 1,
       "protein100": 0.1,
       "fat100": 0.0,
@@ -465,7 +457,6 @@
     {
       "id": "usda-kave-espresso",
       "name": "Kávé, espresso (presszó)",
-      "brand": "USDA FDC",
       "kcal100": 9,
       "protein100": 0.1,
       "fat100": 0.2,
@@ -484,7 +475,6 @@
     {
       "id": "usda-kave-cappuccino",
       "name": "Kávé, cappuccino (tejjel)",
-      "brand": "USDA FDC",
       "kcal100": 27,
       "protein100": 1.7,
       "fat100": 1.0,
