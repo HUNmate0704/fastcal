@@ -1,6 +1,6 @@
 import type { DataApi, DiaryEntry, Food, Meal, SearchHit } from '../types';
 import { fetchOffByEan, searchOff } from './off';
-import { FoodRow, getDb, rowToFood, upsertFood } from './db';
+import { FoodRow, getDb, isTrigramReady, rowToFood, upsertFood } from './db';
 
 function uid() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -45,45 +45,40 @@ function entryFromRow(r: {
 }
 
 
+const ACCENT_MAP: Record<string, string> = {
+  á: 'a',
+  é: 'e',
+  í: 'i',
+  ó: 'o',
+  ö: 'o',
+  ő: 'o',
+  ú: 'u',
+  ü: 'u',
+  ű: 'u',
+  à: 'a',
+  è: 'e',
+  ì: 'i',
+  ò: 'o',
+  ù: 'u',
+  ä: 'a',
+  ë: 'e',
+  ï: 'i',
+  ç: 'c',
+  ñ: 'n',
+  ß: 'ss',
+};
+const ACCENT_RE = /[áéíóöőúüűàèìòùäëïçñß]/g;
+const NON_ASCII_RE = /[^\x00-\x7f]/;
+
 /** Lowercase, trim, collapse spaces; strip HU accents for compare. */
 function normalizeQuery(s: string): string {
-  const map: Record<string, string> = {
-    á: 'a',
-    é: 'e',
-    í: 'i',
-    ó: 'o',
-    ö: 'o',
-    ő: 'o',
-    ú: 'u',
-    ü: 'u',
-    ű: 'u',
-    à: 'a',
-    è: 'e',
-    ì: 'i',
-    ò: 'o',
-    ù: 'u',
-    ä: 'a',
-    ë: 'e',
-    ï: 'i',
-    ç: 'c',
-    ñ: 'n',
-    ß: 'ss',
-  };
-  return s
-    .toLowerCase()
-    .split('')
-    .map((ch) => map[ch] ?? ch)
-    .join('')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .replace(/\s+/g, ' ');
+  let out = s.toLowerCase().replace(ACCENT_RE, (ch) => ACCENT_MAP[ch] ?? ch);
+  if (NON_ASCII_RE.test(out)) out = out.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return out.trim().replace(/\s+/g, ' ');
 }
 
-/** Name-match boosts vs query (exact / starts-with / tokens / shorter). */
-function nameMatchBoost(name: string, query: string): number {
-  const nq = normalizeQuery(query);
-  const nn = normalizeQuery(name);
+/** nameMatchBoost on already-normalized name / query. */
+function nameMatchBoostNorm(nn: string, nq: string): number {
   if (!nq || !nn) return 0;
   let boost = 0;
   if (nn === nq) boost += 20;
@@ -98,60 +93,229 @@ function nameMatchBoost(name: string, query: string): number {
   return boost;
 }
 
-async function searchLocal(q: string): Promise<SearchHit[]> {
-  const db = await getDb();
-  const qq = q.trim();
-  if (!qq) return [];
-  const ftsQ = qq
-    .replace(/["']/g, ' ')
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((t) => `"${t}"*`)
-    .join(' ');
+/** Name-match boosts vs query (exact / starts-with / tokens / shorter). */
+function nameMatchBoost(name: string, query: string): number {
+  return nameMatchBoostNorm(normalizeQuery(name), normalizeQuery(query));
+}
 
-  let rows: FoodRow[] = [];
-  try {
-    rows = await db.getAllAsync<FoodRow>(
-      `SELECT f.* FROM foods_fts
-       JOIN foods f ON f.id = foods_fts.id
-       WHERE foods_fts MATCH ?
-       LIMIT 40`,
-      ftsQ
-    );
-  } catch {
-    const like = `%${qq}%`;
-    rows = await db.getAllAsync<FoodRow>(
-      `SELECT * FROM foods
-       WHERE name LIKE ? OR IFNULL(brand,'') LIKE ?
-       LIMIT 40`,
-      like,
-      like
-    );
+/**
+ * HU synonym / common-spelling groups (accent-folded, lowercase). A query word
+ * expands to every other word of its group. Real synonyms/spellings only.
+ */
+const SYNONYM_GROUPS: string[][] = [
+  ['krumpli', 'burgonya'],
+  ['sultkrumpli', 'sultburgonya', 'hasabburgonya'],
+  ['csoki', 'csokolade'],
+  ['kola', 'cola'],
+  ['sajtburger', 'cheeseburger'],
+  ['kebab', 'kebap'],
+  ['gyros', 'girosz'],
+  ['ketchup', 'kecsap'],
+  ['joghurt', 'jogurt'],
+];
+/** One-way fixes for frequent typos. */
+const TYPO_FIXES: Record<string, string> = {
+  whoper: 'whopper',
+};
+const SYNONYMS = new Map<string, string[]>();
+for (const g of SYNONYM_GROUPS) {
+  for (const w of g) SYNONYMS.set(w, g.filter((x) => x !== w));
+}
+const MAX_VARIANTS = 4;
+/** Prefix FTS hits below this -> also query the trigram (in-word) index. */
+const TRIGRAM_MIN_HITS = 5;
+/** bm25-ranked candidates fetched per index before JS ranking. */
+const FTS_CANDIDATES = 50;
+/** Most-used matching history foods fetched per index (never cut by bm25). */
+const HISTORY_CANDIDATES = 24;
+/** This many most-used matching history foods are guaranteed a slot in the page. */
+const HISTORY_GUARANTEED = 12;
+/** Results returned to callers (UI page size). */
+export const LOCAL_RESULT_LIMIT = 24;
+
+function alternativesFor(token: string): string[] {
+  const out: string[] = [];
+  const fix = TYPO_FIXES[token];
+  if (fix) out.push(fix);
+  const exact = SYNONYMS.get(token);
+  if (exact) out.push(...exact);
+  else if (token.length >= 5) {
+    // typing in progress: "krump" -> krumpli -> burgonya
+    for (const [w, alts] of SYNONYMS) {
+      if (w.startsWith(token)) out.push(...alts);
+    }
   }
+  return out;
+}
 
-  // history boost only for hit ids (avoid full table GROUP BY)
+/** Folded query tokens + synonym/typo variants (first = the query itself). */
+export function expandQuery(q: string): string[][] {
+  const base = normalizeQuery(q.replace(/["'*^():]/g, ' '))
+    .split(' ')
+    .filter(Boolean);
+  if (!base.length) return [];
+  const variants: string[][] = [base];
+  const seen = new Set([base.join(' ')]);
+  for (let i = 0; i < base.length && variants.length < MAX_VARIANTS; i++) {
+    for (const alt of alternativesFor(base[i])) {
+      const v = [...base];
+      v[i] = alt;
+      const key = v.join(' ');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      variants.push(v);
+      if (variants.length >= MAX_VARIANTS) break;
+    }
+  }
+  return variants;
+}
+
+/** ("a"* "b"*) OR ("c"*) — every token is a prefix, tokens ANDed within a variant. */
+function prefixMatchExpr(variants: string[][]): string {
+  return variants.map((v) => `(${v.map((t) => `"${t}"*`).join(' ')})`).join(' OR ');
+}
+
+/** Trigram needs >= 3 chars per term; shorter tokens are dropped, empty -> null. */
+function trigramMatchExpr(variants: string[][]): string | null {
+  const parts = variants
+    .map((v) => v.filter((t) => [...t].length >= 3))
+    .filter((v) => v.length > 0)
+    .map((v) => `(${v.map((t) => `"${t}"`).join(' ')})`);
+  return parts.length ? parts.join(' OR ') : null;
+}
+
+type Candidate = { row: FoodRow; tier: number; uses: number };
+
+/**
+ * Collect matches from one FTS index: the user's most-used matching foods
+ * (history, independent of bm25/rowid order) + the top-N bm25 candidates.
+ * Tier 0 = prefix, 1 = trigram.
+ */
+async function collectFts(
+  db: Awaited<ReturnType<typeof getDb>>,
+  table: 'foods_fts' | 'foods_tri',
+  match: string,
+  tier: number,
+  out: Map<string, Candidate>
+) {
+  // One statement (one native round-trip): FTS match materialized once, then
+  // (a) most-used matching history foods, (b) top-N bm25 candidates. History rows
+  // come first so the dedupe below keeps their use counts.
+  const rows = await db.getAllAsync<FoodRow & { uses: number }>(
+    `WITH m AS MATERIALIZED (SELECT rowid AS rid, rank FROM ${table} WHERE ${table} MATCH ?)
+     SELECT f.*, h.uses AS uses FROM (
+       SELECT f2.id AS fid, COUNT(*) AS uses FROM m
+       JOIN foods f2 ON f2.rowid = m.rid
+       JOIN entries e ON e.food_id = f2.id
+       GROUP BY f2.id ORDER BY uses DESC LIMIT ${HISTORY_CANDIDATES}
+     ) h JOIN foods f ON f.id = h.fid
+     UNION ALL
+     SELECT f.*, 0 AS uses FROM (SELECT rid FROM m ORDER BY rank LIMIT ${FTS_CANDIDATES}) c
+     JOIN foods f ON f.rowid = c.rid`,
+    match
+  );
+  for (const r of rows) {
+    if (!out.has(r.id)) out.set(r.id, { row: r, tier, uses: r.uses });
+  }
+}
+
+/** No FTS5 (e.g. some web builds): substring LIKE per variant. */
+async function collectLike(
+  db: Awaited<ReturnType<typeof getDb>>,
+  variants: string[][],
+  qq: string,
+  out: Map<string, Candidate>
+) {
+  const phrases = [qq, ...variants.map((v) => v.join(' '))];
+  const where = phrases.map(() => `(name LIKE ? OR IFNULL(brand,'') LIKE ?)`).join(' OR ');
+  const params = phrases.flatMap((p) => [`%${p}%`, `%${p}%`]);
+  const rows = await db.getAllAsync<FoodRow>(
+    `SELECT * FROM foods WHERE ${where} LIMIT ${FTS_CANDIDATES * 2}`,
+    ...params
+  );
   const ids = rows.map((r) => r.id);
   const useMap = new Map<string, number>();
   if (ids.length) {
-    const placeholders = ids.map(() => '?').join(',');
     const used = await db.getAllAsync<{ food_id: string; c: number }>(
-      `SELECT food_id, COUNT(*) as c FROM entries WHERE food_id IN (${placeholders}) GROUP BY food_id`,
+      `SELECT food_id, COUNT(*) as c FROM entries WHERE food_id IN (${ids.map(() => '?').join(',')}) GROUP BY food_id`,
       ...ids
     );
     for (const u of used) useMap.set(u.food_id, u.c);
   }
+  for (const r of rows) {
+    if (!out.has(r.id)) out.set(r.id, { row: r, tier: 0, uses: useMap.get(r.id) ?? 0 });
+  }
+}
 
-  const hits: SearchHit[] = rows.map((r) => {
-    const f = rowToFood(r);
+/**
+ * Local-only search shared by api.search / api.searchLocal.
+ * 1) prefix FTS over the query + synonym variants, 2) trigram in-word fallback
+ * when prefix hits < TRIGRAM_MIN_HITS, 3) rank everything (prefix tier above
+ * trigram tier, then score), 4) cut to `limit`, always keeping matching history.
+ */
+async function searchLocal(q: string, limit = LOCAL_RESULT_LIMIT): Promise<SearchHit[]> {
+  const db = await getDb();
+  const qq = q.trim();
+  if (!qq) return [];
+  const variants = expandQuery(qq);
+  if (!variants.length) return [];
+
+  const found = new Map<string, Candidate>();
+  try {
+    await collectFts(db, 'foods_fts', prefixMatchExpr(variants), 0, found);
+  } catch {
+    await collectLike(db, variants, qq, found);
+  }
+  if (found.size < TRIGRAM_MIN_HITS && isTrigramReady()) {
+    const tri = trigramMatchExpr(variants);
+    if (tri) {
+      try {
+        await collectFts(db, 'foods_tri', tri, 1, found);
+      } catch {
+        /* trigram unavailable */
+      }
+    }
+  }
+
+  const phrases = variants.map((v) => v.join(' ')); // already normalized
+  const hits: Array<SearchHit & { tier: number; uses: number }> = [];
+  for (const { row, tier, uses } of found.values()) {
+    const f = rowToFood(row);
     let score = 1;
     if (f.source === 'custom' || f.source === 'history') score += 3;
     if (f.source === 'usda') score += 2;
-    if (useMap.has(f.id)) score += 4 + Math.min(useMap.get(f.id)!, 5);
-    score += nameMatchBoost(f.name, qq);
-    // complete macros already required for seed/OFF
-    return { ...f, score };
-  });
-  return hits.sort((a, b) => (b.score || 0) - (a.score || 0));
+    // history: +4..9 as before, plus up to +5 more for frequently logged foods
+    if (uses > 0) score += 4 + Math.min(uses, 5) + Math.min(5, Math.floor(Math.log2(uses)));
+    const nn = normalizeQuery(f.name);
+    let boost = 0;
+    for (const p of phrases) boost = Math.max(boost, nameMatchBoostNorm(nn, p));
+    score += boost;
+    hits.push({ ...f, score, tier, uses });
+  }
+  const byRank = (a: (typeof hits)[number], b: (typeof hits)[number]) =>
+    a.tier - b.tier || (b.score || 0) - (a.score || 0) || b.uses - a.uses;
+  hits.sort(byRank);
+
+  // Cut only after ranking. The most-used matching history foods always keep a
+  // slot: any that fell below the cut replace the lowest-ranked non-history hits.
+  let out = hits.slice(0, limit);
+  const guaranteed = new Set(
+    hits
+      .filter((h) => h.uses > 0)
+      .sort((a, b) => b.uses - a.uses)
+      .slice(0, Math.min(HISTORY_GUARANTEED, limit))
+      .map((h) => h.id)
+  );
+  const missing = hits.slice(limit).filter((h) => guaranteed.has(h.id));
+  if (missing.length) {
+    const inPage = new Set(out.map((h) => h.id));
+    const droppable = out.filter((h) => !guaranteed.has(h.id) && h.uses === 0).reverse();
+    const drop = new Set(droppable.slice(0, missing.length).map((h) => h.id));
+    out = [...out.filter((h) => !drop.has(h.id)), ...missing.filter((h) => !inPage.has(h.id))]
+      .sort(byRank)
+      .slice(0, limit);
+  }
+  return out.map(({ tier: _tier, uses: _uses, ...h }) => h);
 }
 
 export async function createSqliteApi(): Promise<DataApi> {
@@ -271,8 +435,8 @@ export async function createSqliteApi(): Promise<DataApi> {
     },
 
     async searchLocal(q) {
-      const local = await searchLocal(q);
-      return local.slice(0, 24);
+      // ranking + history-safe cut happen inside searchLocal()
+      return searchLocal(q, LOCAL_RESULT_LIMIT);
     },
 
     async searchRemote(q) {

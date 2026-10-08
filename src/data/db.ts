@@ -18,6 +18,28 @@ export type FoodRow = {
 };
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
+/** True once the trigram FTS index (foods_tri) exists and is backfilled. */
+let trigramReady = false;
+
+export function isTrigramReady() {
+  return trigramReady;
+}
+
+/** Rebuild every FTS index over `foods` (prefix + trigram). Ignores missing ones. */
+async function rebuildFts(db: SQLite.SQLiteDatabase) {
+  try {
+    await db.execAsync(`INSERT INTO foods_fts(foods_fts) VALUES('rebuild');`);
+  } catch {
+    /* ignore */
+  }
+  if (trigramReady) {
+    try {
+      await db.execAsync(`INSERT INTO foods_tri(foods_tri) VALUES('rebuild');`);
+    } catch {
+      /* ignore */
+    }
+  }
+}
 
 export function getDb() {
   if (!dbPromise) dbPromise = openAndMigrate();
@@ -94,6 +116,35 @@ END;
     // FTS unavailable — LIKE fallback in search
   }
 
+  // Trigram FTS5 for in-word matches (HU compounds: "szalámi" -> "téliszalámi",
+  // "mell" -> "Csirkemell"). remove_diacritics for trigram needs SQLite >= 3.45;
+  // expo-sqlite native ships 3.49.1. If unsupported, search skips the fallback.
+  try {
+    await db.execAsync(`
+CREATE VIRTUAL TABLE IF NOT EXISTS foods_tri USING fts5(
+  name,
+  brand,
+  content='foods',
+  content_rowid='rowid',
+  tokenize='trigram remove_diacritics 1'
+);
+CREATE TRIGGER IF NOT EXISTS foods_tri_ai AFTER INSERT ON foods BEGIN
+  INSERT INTO foods_tri(rowid, name, brand) VALUES (new.rowid, new.name, coalesce(new.brand,''));
+END;
+CREATE TRIGGER IF NOT EXISTS foods_tri_ad AFTER DELETE ON foods BEGIN
+  INSERT INTO foods_tri(foods_tri, rowid, name, brand) VALUES('delete', old.rowid, old.name, coalesce(old.brand,''));
+END;
+CREATE TRIGGER IF NOT EXISTS foods_tri_au AFTER UPDATE ON foods BEGIN
+  INSERT INTO foods_tri(foods_tri, rowid, name, brand) VALUES('delete', old.rowid, old.name, coalesce(old.brand,''));
+  INSERT INTO foods_tri(rowid, name, brand) VALUES (new.rowid, new.name, coalesce(new.brand,''));
+END;
+`);
+    trigramReady = true;
+  } catch {
+    trigramReady = false;
+  }
+  let seededThisLaunch = false;
+
   // serving columns (idempotent)
   try {
     await db.execAsync(`ALTER TABLE foods ADD COLUMN serving_grams REAL`);
@@ -134,12 +185,9 @@ END;
         `INSERT OR REPLACE INTO meta (key, value) VALUES ('usda_seed_v1', '1')`
       );
     });
-    // rebuild FTS if empty
-    try {
-      await db.execAsync(`INSERT INTO foods_fts(foods_fts) VALUES('rebuild');`);
-    } catch {
-      /* ignore */
-    }
+    // rebuild FTS indexes (prefix + trigram)
+    await rebuildFts(db);
+    seededThisLaunch = true;
   }
 
   const chainSeeded = await db.getFirstAsync<{ value: string }>(
@@ -177,11 +225,8 @@ END;
         `INSERT OR REPLACE INTO meta (key, value) VALUES ('hu_chains_seed_v1', '1')`
       );
     });
-    try {
-      await db.execAsync(`INSERT INTO foods_fts(foods_fts) VALUES('rebuild');`);
-    } catch {
-      /* ignore */
-    }
+    await rebuildFts(db);
+    seededThisLaunch = true;
   }
 
 
@@ -222,10 +267,26 @@ END;
         `INSERT OR REPLACE INTO meta (key, value) VALUES ('hu_grocery_seed_v1', '1')`
       );
     });
-    try {
-      await db.execAsync(`INSERT INTO foods_fts(foods_fts) VALUES('rebuild');`);
-    } catch {
-      /* ignore */
+    await rebuildFts(db);
+    seededThisLaunch = true;
+  }
+
+  // Existing installs: backfill the trigram index once (versioned).
+  if (trigramReady) {
+    const triSeeded = await db.getFirstAsync<{ value: string }>(
+      `SELECT value FROM meta WHERE key = 'foods_tri_v1'`
+    );
+    if (!triSeeded) {
+      if (!seededThisLaunch) {
+        try {
+          await db.execAsync(`INSERT INTO foods_tri(foods_tri) VALUES('rebuild');`);
+        } catch {
+          trigramReady = false;
+        }
+      }
+      if (trigramReady) {
+        await db.runAsync(`INSERT OR REPLACE INTO meta (key, value) VALUES ('foods_tri_v1', '1')`);
+      }
     }
   }
 
