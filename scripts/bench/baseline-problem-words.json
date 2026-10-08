@@ -1,0 +1,98 @@
+{
+  "commit": "d777bfb",
+  "capturedAt": "2026-10-08T07:20:44.139Z",
+  "rows": [
+    {
+      "query": "túró rudi",
+      "hits": 0,
+      "top": "",
+      "top3": []
+    },
+    {
+      "query": "sonka",
+      "hits": 0,
+      "top": "",
+      "top3": []
+    },
+    {
+      "query": "szalámi",
+      "hits": 0,
+      "top": "",
+      "top3": []
+    },
+    {
+      "query": "pizza",
+      "hits": 0,
+      "top": "",
+      "top3": []
+    },
+    {
+      "query": "kebab",
+      "hits": 0,
+      "top": "",
+      "top3": []
+    },
+    {
+      "query": "tejföl",
+      "hits": 0,
+      "top": "",
+      "top3": []
+    },
+    {
+      "query": "kolbász",
+      "hits": 0,
+      "top": "",
+      "top3": []
+    },
+    {
+      "query": "csoki",
+      "hits": 0,
+      "top": "",
+      "top3": []
+    },
+    {
+      "query": "keksz",
+      "hits": 0,
+      "top": "",
+      "top3": []
+    },
+    {
+      "query": "krumpli",
+      "hits": 0,
+      "top": "",
+      "top3": []
+    },
+    {
+      "query": "whopper",
+      "hits": 5,
+      "top": "Burger King WHOPPER",
+      "top3": [
+        "Burger King WHOPPER",
+        "Burger King Dupla WHOPPER",
+        "Burger King WHOPPER Jr."
+      ]
+    },
+    {
+      "query": "whoper",
+      "hits": 0,
+      "top": "",
+      "top3": []
+    },
+    {
+      "query": "mell",
+      "hits": 1,
+      "top": "KFC Mell",
+      "top3": [
+        "KFC Mell"
+      ]
+    },
+    {
+      "query": "kávé",
+      "hits": 1,
+      "top": "Cerbona Müzliszelet kávés",
+      "top3": [
+        "Cerbona Müzliszelet kávés"
+      ]
+    }
+  ]
+}

@@ -12,6 +12,7 @@
  *   node scripts/bench.mjs --quick            # fewer repeats, skip slow OFF/blackhole
  *   node scripts/bench.mjs --doctor           # also run `npx expo-doctor`
  *   node scripts/bench.mjs --no-off --no-scale
+ *   node scripts/bench.mjs --write-baseline   # save problem-word results as the "before" file
  *
  * Caveat: this measures a Linux box / Node + SQLite. Phones (JSI bridge,
  * slower CPU + flash) will be slower; use the numbers for relative cost and
@@ -19,7 +20,7 @@
  */
 import { build } from 'esbuild';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -43,6 +44,8 @@ const DO_OFF = !flag('no-off');
 const DO_SCALE = !flag('no-scale');
 const DO_DOCTOR = flag('doctor');
 const DO_BLACKHOLE = !QUICK && !flag('no-blackhole');
+const WRITE_BASELINE = flag('write-baseline');
+const BASELINE_FILE = join(ROOT, 'scripts/bench/baseline-problem-words.json');
 
 // ---------- helpers ----------
 const now = () => performance.now();
@@ -173,7 +176,9 @@ async function benchColdStart() {
       medianMs: r2(median(breakdowns.map((b) => b.get(k)?.ms ?? 0))),
     }))
     .sort((a, b) => b.medianMs - a.medianMs);
+  const migration = await benchMigration();
   result.coldStart = {
+    migration,
     runs: RUNS,
     firstLaunchMs: { median: r1(median(cold)), max: r1(max(cold)), all: cold.map(r1) },
     warmLaunchMs: { median: r1(median(warm)), max: r1(max(warm)), all: warm.map(r1) },
@@ -187,6 +192,56 @@ async function benchColdStart() {
   console.log('rows:', JSON.stringify(counts));
   console.log('breakdown of first launch (median ms per step):');
   table(breakdown, ['step', 'calls', 'medianMs']);
+}
+
+/** Existing install without the trigram index: next launch must create + backfill it. */
+async function benchMigration() {
+  const path = dbFile('migrate');
+  const a = await loadFresh(path);
+  await a.mod.getDb();
+  const db0 = rawDb();
+  if (!db0.prepare(`SELECT 1 FROM sqlite_master WHERE name = 'foods_tri'`).get()) {
+    db0.close();
+    console.log('migration check: skipped (this code has no foods_tri index)');
+    return { skipped: true };
+  }
+  // roll back to the pre-trigram schema
+  db0.exec(`DROP TRIGGER IF EXISTS foods_tri_ai; DROP TRIGGER IF EXISTS foods_tri_ad; DROP TRIGGER IF EXISTS foods_tri_au;
+            DROP TABLE IF EXISTS foods_tri; DELETE FROM meta WHERE key = 'foods_tri_v1';`);
+  db0.close();
+  const b = await loadFresh(path);
+  const t0 = now();
+  await b.mod.getDb();
+  const ms = now() - t0;
+  const db = rawDb();
+  const foods = db.prepare('SELECT COUNT(*) c FROM foods').get().c;
+  const tri = db.prepare(`SELECT COUNT(*) c FROM foods_tri WHERE foods_tri MATCH '"szalami"'`).get().c;
+  const meta = !!db.prepare(`SELECT 1 FROM meta WHERE key = 'foods_tri_v1'`).get();
+  let integrity = 'ok';
+  try {
+    db.exec(`INSERT INTO foods_tri(foods_tri) VALUES('integrity-check')`);
+  } catch (e) {
+    integrity = `FAIL: ${e.message}`;
+  }
+  db.close();
+  const pass = tri > 0 && meta && integrity === 'ok';
+  console.log(`migration check (old DB without foods_tri -> next launch): ${r1(ms)} ms, "szalami" trigram hits ${tri}, meta foods_tri_v1 ${meta}, integrity ${integrity} -> ${pass ? 'PASS' : 'FAIL'} (${foods} foods)`);
+  if (!pass) process.exitCode = 1;
+  return { pass, launchMs: r1(ms), triHitsSzalami: tri, meta, integrity };
+}
+
+/** On-disk bytes per table/index family (needs dbstat; null if unavailable). */
+function indexSizes(db) {
+  try {
+    return db
+      .prepare(
+        `SELECT CASE WHEN name LIKE 'foods_tri%' THEN 'foods_tri (trigram)' WHEN name LIKE 'foods_fts%' THEN 'foods_fts (prefix)'
+                ELSE name END AS obj, SUM(pgsize) AS bytes FROM dbstat GROUP BY obj ORDER BY bytes DESC`
+      )
+      .all();
+  } catch {
+    return null;
+  }
 }
 
 // ---------- 2. FTS search ----------
@@ -204,15 +259,19 @@ const QUERIES = [
   ['krumpli', /burgonya|krumpli/], ['mell', /mell/],
 ];
 
+/** UI path: api.searchLocal (local DB only); falls back to search() on older code. */
+const localSearch = (api) => (api.searchLocal ? (q) => api.searchLocal(q) : (q) => api.search(q));
+
 async function measureQueries(api, queries, repeats) {
+  const search = localSearch(api);
   const rows = [];
   for (const [q, expect] of queries) {
-    for (let w = 0; w < 3; w++) await api.search(q);
+    for (let w = 0; w < 3; w++) await search(q);
     const times = [];
     let res = [];
     for (let i = 0; i < repeats; i++) {
       const t0 = now();
-      res = await api.search(q);
+      res = await search(q);
       times.push(now() - t0);
     }
     const top = res[0];
@@ -235,7 +294,7 @@ async function measureQueries(api, queries, repeats) {
 }
 
 async function benchSearch() {
-  h(`2. FTS search latency (api.search, ${REPEATS} repeats/query, OFF offline fast-fail)`);
+  h(`2. Local search latency (api.searchLocal = UI path, ${REPEATS} repeats/query)`);
   globalThis.fetch = offlineFastFail; // 0-hit queries fall through to OFF; keep it instant here
   const { mod } = await loadFresh(dbFile('search'));
   const api = await mod.createSqliteApi();
@@ -245,6 +304,7 @@ async function benchSearch() {
   const slow = [...rows].sort((a, b) => b.p50 - a.p50).slice(0, 5);
   console.log(`overall: p50 ${r2(median(all))} ms, p95 ${r2(pct(all, 95))} ms, max ${r2(max(all))} ms over ${all.length} calls`);
   console.log(`slowest p50: ${slow.map((r) => `${r.query} ${r.p50}ms`).join(', ')}`);
+  await benchProblemWords(api);
   result.search = {
     repeats: REPEATS,
     overall: { p50: r2(median(all)), p95: r2(pct(all, 95)), max: r2(max(all)), n: all.length },
@@ -254,6 +314,41 @@ async function benchSearch() {
     badTop: rows.filter((r) => r.flag === 'BAD TOP').map((r) => `${r.query} -> ${r.top}`),
   };
   rawDb().close();
+}
+
+// ---------- 2b. problem words (before/after) ----------
+const PROBLEM_WORDS = ['túró rudi', 'sonka', 'szalámi', 'pizza', 'kebab', 'tejföl', 'kolbász', 'csoki', 'keksz',
+  'krumpli', 'whopper', 'whoper', 'mell', 'kávé'];
+const hitLabel = (top) => (top ? `${top.brand && !top.name.includes(top.brand) ? top.brand + ' ' : ''}${top.name}` : '');
+
+async function benchProblemWords(api) {
+  const search = localSearch(api);
+  const rows = [];
+  for (const q of PROBLEM_WORDS) {
+    const res = await search(q);
+    rows.push({ query: q, hits: res.length, top: hitLabel(res[0]), top3: res.slice(0, 3).map(hitLabel) });
+  }
+  let base = null;
+  if (WRITE_BASELINE) {
+    const commit = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
+    writeFileSync(BASELINE_FILE, JSON.stringify({ commit, capturedAt: new Date().toISOString(), rows }, null, 2) + '\n');
+    console.log(`(baseline written to scripts/bench/baseline-problem-words.json @ ${commit})`);
+  } else if (existsSync(BASELINE_FILE)) {
+    base = JSON.parse(readFileSync(BASELINE_FILE, 'utf8'));
+  }
+  const bmap = new Map((base?.rows || []).map((r) => [r.query, r]));
+  console.log(`\n--- problem words (seed DB, searchLocal)${base ? ` — before = ${base.commit}` : ''} ---`);
+  table(
+    rows.map((r) => ({
+      query: r.query,
+      'hits before': bmap.get(r.query)?.hits ?? '-',
+      'top before': (bmap.get(r.query)?.top ?? '-').slice(0, 26),
+      hits: r.hits,
+      'top now': r.top.slice(0, 30),
+    })),
+    ['query', 'hits before', 'top before', 'hits', 'top now']
+  );
+  result.problemWords = { baselineCommit: base?.commit ?? null, before: base?.rows ?? null, now: rows };
 }
 
 // ---------- 3/5. per-item logging data path ----------
@@ -374,15 +469,16 @@ async function benchScale() {
   db.exec('DROP INDEX IF EXISTS idx_entries_food');
   const before = await measureQueries(api, qs, rep);
   const readsBefore = await readPaths();
-  // truncation check: does the heavily-logged late custom food show up for "tej"?
-  const tejHits = await api.search('tej');
-  const ftsTejMatches = db.prepare(`SELECT COUNT(*) c FROM foods_fts WHERE foods_fts MATCH '"tej"*'`).get().c;
-  const customRank = tejHits.findIndex((x) => x.id === 'custom-hazi-tej');
   const plan = db.prepare(`EXPLAIN QUERY PLAN SELECT food_id, COUNT(*) as c FROM entries WHERE food_id IN (?,?,?) GROUP BY food_id`).all('a', 'b', 'c').map((r) => r.detail);
 
   // with the index on entries(food_id) (same DDL as src/data/db.ts)
   db.exec('CREATE INDEX IF NOT EXISTS idx_entries_food ON entries(food_id)');
   const after = await measureQueries(api, qs, rep);
+  // REGRESSION: heavily-logged late custom food must appear for "tej" (history-first ranking)
+  const tejHits = await localSearch(api)('tej');
+  const ftsTejMatches = db.prepare(`SELECT COUNT(*) c FROM foods_fts WHERE foods_fts MATCH '"tej"*'`).get().c;
+  const customRank = tejHits.findIndex((x) => x.id === 'custom-hazi-tej');
+  const tejLogged = db.prepare(`SELECT COUNT(*) c FROM entries WHERE food_id = 'custom-hazi-tej'`).get().c;
   const readsAfter = await readPaths();
   const planAfter = db.prepare(`EXPLAIN QUERY PLAN SELECT food_id, COUNT(*) as c FROM entries WHERE food_id IN (?,?,?) GROUP BY food_id`).all('a', 'b', 'c').map((r) => r.detail);
 
@@ -397,14 +493,22 @@ async function benchScale() {
   table(Object.keys(readsBefore).map((k) => ({ path: k, 'p50 noIdx': readsBefore[k].p50, 'p95 noIdx': readsBefore[k].p95, p50: readsAfter[k].p50, p95: readsAfter[k].p95 })), ['path', 'p50 noIdx', 'p95 noIdx', 'p50', 'p95']);
   console.log(`history-boost lookup plan without index: ${plan.join(' | ')}  ->  with: ${planAfter.join(' | ')}`);
   console.log(`scaled search overall: p50 ${r2(median(allA))} ms, p95 ${r2(pct(allA, 95))} ms (without index: p50 ${r2(median(allB))}, p95 ${r2(pct(allB, 95))})`);
-  console.log(`LIMIT-40 truncation: FTS matches for "tej"* = ${ftsTejMatches}; heavily-logged custom "Házi tej" rank in results = ${customRank < 0 ? 'NOT RETURNED' : customRank + 1}`);
+  const histOk = customRank >= 0;
+  console.log(`REGRESSION history-in-results: "tej"* FTS matches = ${ftsTejMatches}; "Házi tej" (custom, logged ${tejLogged}x) rank = ${histOk ? customRank + 1 : 'NOT RETURNED'} of ${tejHits.length} -> ${histOk ? 'PASS' : 'FAIL'}`);
+  if (!histOk) process.exitCode = 1;
+  const sizes = indexSizes(db);
+  if (sizes) {
+    console.log('on-disk size (KiB) of largest objects:');
+    table(sizes.slice(0, 6).map((r) => ({ object: r.obj, KiB: Math.round(r.bytes / 1024) })), ['object', 'KiB']);
+  }
   result.scale = {
     synthetic: true, foodsAdded: FOODS + 1, entries: DAYS * PER_DAY,
     fillMs: { foods: r1(fillFoodsMs), entries: r1(fillEntriesMs) },
     search: { p50NoFoodIdIndex: r2(median(allB)), p95NoFoodIdIndex: r2(pct(allB, 95)), p50: r2(median(allA)), p95: r2(pct(allA, 95)) },
     perQuery: cmp, readPathsNoFoodIdIndex: readsBefore, readPaths: readsAfter,
     historyLookupPlanNoIndex: plan, historyLookupPlan: planAfter,
-    limit40Truncation: { ftsMatchesTej: ftsTejMatches, customHaziTejRank: customRank < 0 ? null : customRank + 1 },
+    sizesBytes: sizes,
+    historyRegression: { pass: histOk, ftsMatchesTej: ftsTejMatches, haziTejLogged: tejLogged, haziTejRank: histOk ? customRank + 1 : null, results: tejHits.length },
   };
   db.close();
 }
@@ -451,6 +555,11 @@ async function benchOff() {
   await run('api.search("csirkemell") local hit, OFF hanging', hangingFetch, () => api.search('csirkemell').then((r) => r.length));
   await run('api.search("tojás") local hit, OFF hanging', hangingFetch, () => api.search('tojás').then((r) => r.length));
   await run('api.search("pizza") 0 local hits, OFF hanging', hangingFetch, () => api.search('pizza').then((r) => r.length));
+  if (api.searchLocal) {
+    await run('api.searchLocal("csirkemell") [UI path], OFF hanging', hangingFetch, () => api.searchLocal('csirkemell').then((r) => r.length));
+    await run('api.searchLocal("pizza") [UI path], OFF hanging', hangingFetch, () => api.searchLocal('pizza').then((r) => r.length));
+    await run('api.searchRemote("pizza") [background], OFF hanging', hangingFetch, () => api.searchRemote('pizza').then((r) => r.length));
+  }
   await run('api.lookupEan(seeded Pick EAN), OFF hanging', hangingFetch, () => api.lookupEan('5998003124043').then((f) => f?.name ?? null));
   await run('api.lookupEan(unknown EAN), OFF hanging', hangingFetch, () => api.lookupEan('5990000000002').then((f) => f?.name ?? null));
   table(cases, ['case', 'ms', 'result']);
