@@ -420,6 +420,8 @@ async function searchMode(noFts) {
   const label = noFts ? 'web fallback (no fts5 -> name_norm LIKE)' : 'native (FTS5 prefix + trigram)';
   const { mod } = await loadFresh(dbFile(`search-${noFts ? 'web' : 'native'}`), { noFts });
   const api = await mod.createSqliteApi();
+  api.__benchMod = mod;
+  api.__benchRaw = rawDb();
   const rows = await measureQueries(api, QUERIES, REPEATS);
   const all = rows.flatMap((r) => r._times);
   console.log(`\n--- ${label} ---`);
@@ -471,6 +473,41 @@ async function problemRows(api) {
   return rows;
 }
 
+/**
+ * Real case from the Pages build: cached OFF duplicates outranked seed foods.
+ * BENCH FIXTURE ONLY (not seed data): 3 OFF-like rows, nutrition values are
+ * placeholders. Seed foods must win within a tier unless the user logged the OFF row.
+ */
+const OFF_FIXTURE = [
+  { id: 'off-bench-1', name: 'Téliszalámi', brand: 'Pick', ean: '5990000990001' },
+  { id: 'off-bench-2', name: 'Pick téliszalámi szeletelt', brand: 'Pick Szeged', ean: '5990000990002' },
+  { id: 'off-bench-3', name: 'Szalámi téli, szeletelt', brand: 'Bench', ean: '5990000990003' },
+].map((f) => ({ ...f, kcal100: 500, protein100: 20, fat100: 45, carbs100: 1, source: 'off' }));
+
+async function benchOffCacheRanking({ native, web }) {
+  console.log('\n--- cached OFF vs seed ranking (3 OFF fixture rows added to the seed DB) ---');
+  const out = {};
+  for (const [m, api] of [['native', native], ['web', web]]) {
+    if (!api) continue;
+    const mod = api.__benchMod;
+    for (const f of OFF_FIXTURE) await mod.upsertFood(f);
+    const search = localSearch(api);
+    const tel = await search('teliszalami');
+    const sza = await search('szalami');
+    const top5 = (r) => r.slice(0, 5).map((x) => `${x.name} [${x.source}]`);
+    const telOk = tel[0]?.id === 'hu-pick-eredeti-teliszalami';
+    const szaOk = sza.slice(0, 3).some((x) => x.source !== 'off');
+    console.log(`[${m}] teliszalami top5: ${top5(tel).join(' | ')} -> ${telOk ? 'PASS' : 'FAIL (seed not #1)'}`);
+    console.log(`[${m}] szalami top5:     ${top5(sza).join(' | ')} -> ${szaOk ? 'PASS' : 'FAIL (no seed in top 3)'}`);
+    if (!telOk || !szaOk) process.exitCode = 1;
+    out[m] = { teliszalami: top5(tel), szalami: top5(sza), telOk, szaOk };
+    // remove fixture rows again so the problem-word table stays seed-only
+    const db = api.__benchRaw;
+    db.prepare(`DELETE FROM foods WHERE id IN (${OFF_FIXTURE.map(() => '?').join(',')})`).run(...OFF_FIXTURE.map((f) => f.id));
+  }
+  result.offCacheRanking = out;
+}
+
 async function benchProblemWords({ native, web }) {
   const nat = await problemRows(native);
   const wb = await problemRows(web);
@@ -510,6 +547,7 @@ async function benchProblemWords({ native, web }) {
     console.log(`ASSERT "usda" does not match missing-words USDA items [${m}]: ${leaked.length ? 'FAIL ' + leaked.join(',') : 'PASS'}`);
     if (leaked.length) process.exitCode = 1;
   }
+  await benchOffCacheRanking({ native, web });
   console.log(`\n--- problem words (seed DB, searchLocal): hits + top hit, native vs forced web fallback ---`);
   table(rows, Object.keys(rows[0]));
   if (failures.length) {

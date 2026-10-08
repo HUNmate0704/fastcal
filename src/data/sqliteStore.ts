@@ -233,10 +233,17 @@ async function collectLike(
   }
 }
 
+/** Prefix hits that aren't never-logged cached OFF rows (those shouldn't hide seeds). */
+function strongHits(found: Map<string, Candidate>): number {
+  let n = 0;
+  for (const c of found.values()) if (c.row.source !== 'off' || c.uses > 0) n++;
+  return n;
+}
+
 /**
  * Local-only search shared by api.search / api.searchLocal.
  * 1) prefix FTS over the query + synonym variants, 2) trigram in-word fallback
- * when prefix hits < TRIGRAM_MIN_HITS, 3) rank everything (prefix tier above
+ * when non-OFF prefix hits < TRIGRAM_MIN_HITS, 3) rank everything (prefix tier above
  * trigram tier, then score), 4) cut to `limit`, always keeping matching history.
  */
 async function searchLocal(q: string, limit = LOCAL_RESULT_LIMIT): Promise<SearchHit[]> {
@@ -258,7 +265,7 @@ async function searchLocal(q: string, limit = LOCAL_RESULT_LIMIT): Promise<Searc
   if (!ftsOk) {
     // web / no FTS5: accent-insensitive substring match is the primary path
     await collectLike(db, variants, 0, found);
-  } else if (found.size < TRIGRAM_MIN_HITS) {
+  } else if (strongHits(found) < TRIGRAM_MIN_HITS) {
     const tri = isTrigramReady() ? trigramMatchExpr(variants) : null;
     if (tri) {
       try {
@@ -287,8 +294,11 @@ async function searchLocal(q: string, limit = LOCAL_RESULT_LIMIT): Promise<Searc
     score += boost;
     hits.push({ ...f, score, tier, uses });
   }
+  // Within a tier: the user's history + seed/custom foods (scored as before)
+  // come before cached OFF foods the user never logged; then score.
+  const offRank = (h: (typeof hits)[number]) => (h.source === 'off' && h.uses === 0 ? 1 : 0);
   const byRank = (a: (typeof hits)[number], b: (typeof hits)[number]) =>
-    a.tier - b.tier || (b.score || 0) - (a.score || 0) || b.uses - a.uses;
+    a.tier - b.tier || offRank(a) - offRank(b) || (b.score || 0) - (a.score || 0) || b.uses - a.uses;
   hits.sort(byRank);
 
   // Cut only after ranking. The most-used matching history foods always keep a
