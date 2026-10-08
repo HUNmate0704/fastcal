@@ -177,8 +177,10 @@ async function collectFts(
   out: Map<string, Candidate>
 ) {
   // One statement (one native round-trip): FTS match materialized once, then
-  // (a) most-used matching history foods, (b) top-N bm25 candidates. History rows
-  // come first so the dedupe below keeps their use counts.
+  // (a) most-used matching history foods, (b) top-N candidates with non-OFF
+  // (seed/custom) rows first, then bm25 — so a pile of cached OFF matches can't
+  // push seed matches out before ranking. History rows come first so the dedupe
+  // below keeps their use counts.
   const rows = await db.getAllAsync<FoodRow & { uses: number }>(
     `WITH m AS MATERIALIZED (SELECT rowid AS rid, rank FROM ${table} WHERE ${table} MATCH ?)
      SELECT f.*, h.uses AS uses FROM (
@@ -188,7 +190,10 @@ async function collectFts(
        GROUP BY f2.id ORDER BY uses DESC LIMIT ${HISTORY_CANDIDATES}
      ) h JOIN foods f ON f.id = h.fid
      UNION ALL
-     SELECT f.*, 0 AS uses FROM (SELECT rid FROM m ORDER BY rank LIMIT ${FTS_CANDIDATES}) c
+     SELECT f.*, 0 AS uses FROM (
+       SELECT m.rid FROM m JOIN foods f3 ON f3.rowid = m.rid
+       ORDER BY (f3.source = 'off'), m.rank LIMIT ${FTS_CANDIDATES}
+     ) c
      JOIN foods f ON f.rowid = c.rid`,
     match
   );
@@ -203,7 +208,7 @@ const escapeLike = (t: string) => t.replace(/[\\%_]/g, (m) => `\\${m}`);
  * No FTS5 (web wasm build) or no trigram: accent-insensitive substring match on
  * foods.name_norm — every token of a variant must occur (AND), variants are OR'd.
  * Same shape as collectFts: most-used matching history + top-N candidates
- * (name starting with the query first, then shorter names).
+ * (non-OFF first, then name starting with the query, then shorter names).
  */
 async function collectLike(
   db: Awaited<ReturnType<typeof getDb>>,
@@ -218,7 +223,8 @@ async function collectLike(
   const startsWith = `${escapeLike(variants[0].join(' '))}%`;
   const rows = await db.getAllAsync<FoodRow & { uses: number }>(
     `WITH m AS MATERIALIZED (
-       SELECT rowid AS rid, name_norm AS nn, length(name) AS len FROM foods WHERE ${where}
+       SELECT rowid AS rid, name_norm AS nn, length(name) AS len, (source = 'off') AS is_off
+       FROM foods WHERE ${where}
      )
      SELECT f.*, h.uses AS uses FROM (
        SELECT f2.id AS fid, COUNT(*) AS uses FROM m
@@ -228,7 +234,7 @@ async function collectLike(
      ) h JOIN foods f ON f.id = h.fid
      UNION ALL
      SELECT f.*, 0 AS uses FROM (
-       SELECT rid FROM m ORDER BY (nn LIKE ? ESCAPE '\\') DESC, len LIMIT ${FTS_CANDIDATES}
+       SELECT rid FROM m ORDER BY is_off, (nn LIKE ? ESCAPE '\\') DESC, len LIMIT ${FTS_CANDIDATES}
      ) c
      JOIN foods f ON f.rowid = c.rid`,
     ...params,
@@ -239,7 +245,7 @@ async function collectLike(
   }
 }
 
-/** Prefix hits that aren't never-logged cached OFF rows (those shouldn't hide seeds). */
+/** Hits that aren't never-logged cached OFF rows; fewer than TRIGRAM_MIN_HITS -> run the in-word fallback. */
 function strongHits(found: Map<string, Candidate>): number {
   let n = 0;
   for (const c of found.values()) if (c.row.source !== 'off' || c.uses > 0) n++;
@@ -300,11 +306,13 @@ async function searchLocal(q: string, limit = LOCAL_RESULT_LIMIT): Promise<Searc
     score += boost;
     hits.push({ ...f, score, tier, uses });
   }
-  // Within a tier: the user's history + seed/custom foods (scored as before)
-  // come before cached OFF foods the user never logged; then score.
+  // Groups beat match tiers: (0) the user's history (any source), (1) seed and
+  // custom foods (usda, grocery, chain, custom, ...), (2) cached OFF foods never
+  // logged. Inside a group: match tier (prefix above in-word), then score.
   const offRank = (h: (typeof hits)[number]) => (h.source === 'off' && h.uses === 0 ? 1 : 0);
+  const group = (h: (typeof hits)[number]) => (h.uses > 0 ? 0 : 1 + offRank(h));
   const byRank = (a: (typeof hits)[number], b: (typeof hits)[number]) =>
-    a.tier - b.tier || offRank(a) - offRank(b) || (b.score || 0) - (a.score || 0) || b.uses - a.uses;
+    group(a) - group(b) || a.tier - b.tier || (b.score || 0) - (a.score || 0) || b.uses - a.uses;
   hits.sort(byRank);
   if (SEARCH_DEBUG) {
     const rows = hits.map((h, i) => ({
@@ -313,6 +321,7 @@ async function searchLocal(q: string, limit = LOCAL_RESULT_LIMIT): Promise<Searc
       source: h.source,
       tier: h.tier,
       offRank: offRank(h),
+      group: group(h),
       uses: h.uses,
       score: h.score,
     }));

@@ -474,35 +474,54 @@ async function problemRows(api) {
 }
 
 /**
- * Real case from the Pages build: cached OFF duplicates outranked seed foods.
- * BENCH FIXTURE ONLY (not seed data): 3 OFF-like rows, nutrition values are
- * placeholders. Seed foods must win within a tier unless the user logged the OFF row.
+ * Live case (Pages build, 2026-10-08): cached OFF rows (source 'off', never
+ * logged) whose names START with the query outranked the seed "Pick Eredeti
+ * téliszalámi", which only matches in-word for "szalami".
+ * BENCH FIXTURE ONLY (not seed data, not shipped): names mimic the live rows,
+ * nutrition values are obvious placeholders (111/11/11/11).
  */
+const OFF_SZALAMI_NAMES = ['Szalámi szeletelt', 'Szalámi csemege', 'Szalámi paprikás', 'Szalámi pikáns', 'szalámi rúd',
+  'Szalámi light', 'Szalámi snack', 'Szalámi csípős', 'szalámi szeletek', 'Szalámi füstölt', 'Szalámi extra', 'Szalámi mini'];
 const OFF_FIXTURE = [
-  { id: 'off-bench-1', name: 'Téliszalámi', brand: 'Pick', ean: '5990000990001' },
-  { id: 'off-bench-2', name: 'Pick téliszalámi szeletelt', brand: 'Pick Szeged', ean: '5990000990002' },
-  { id: 'off-bench-3', name: 'Szalámi téli, szeletelt', brand: 'Bench', ean: '5990000990003' },
-].map((f) => ({ ...f, kcal100: 500, protein100: 20, fat100: 45, carbs100: 1, source: 'off' }));
+  { name: 'TÉLISZALÁMI', brand: 'PICK' },
+  { name: 'Téliszalámi', brand: 'Pick' },
+  { name: 'Tesco téliszalámi', brand: 'Tesco' },
+  ...OFF_SZALAMI_NAMES.map((name) => ({ name, brand: 'Bench' })),
+].map((f, i) => ({
+  ...f,
+  id: `off-bench-${i + 1}`,
+  ean: String(5990000990001 + i),
+  kcal100: 111, protein100: 11, fat100: 11, carbs100: 11,
+  source: 'off',
+}));
+const PICK_SEED = 'hu-pick-eredeti-teliszalami';
 
 async function benchOffCacheRanking({ native, web }) {
-  console.log('\n--- cached OFF vs seed ranking (3 OFF fixture rows added to the seed DB) ---');
+  console.log(`\n--- cached OFF vs seed ranking (${OFF_FIXTURE.length} OFF fixture rows, uses=0, added to the seed DB) ---`);
   const out = {};
+  const top = (r, n) => r.slice(0, n).map((x) => `${x.name} [${x.source}${x.brand ? ', ' + x.brand : ''}]`);
   for (const [m, api] of [['native', native], ['web', web]]) {
     if (!api) continue;
     const mod = api.__benchMod;
+    const db = api.__benchRaw;
     for (const f of OFF_FIXTURE) await mod.upsertFood(f);
     const search = localSearch(api);
     const tel = await search('teliszalami');
     const sza = await search('szalami');
-    const top5 = (r) => r.slice(0, 5).map((x) => `${x.name} [${x.source}]`);
-    const telOk = tel[0]?.id === 'hu-pick-eredeti-teliszalami';
-    const szaOk = sza.slice(0, 3).some((x) => x.source !== 'off');
-    console.log(`[${m}] teliszalami top5: ${top5(tel).join(' | ')} -> ${telOk ? 'PASS' : 'FAIL (seed not #1)'}`);
-    console.log(`[${m}] szalami top5:     ${top5(sza).join(' | ')} -> ${szaOk ? 'PASS' : 'FAIL (no seed in top 3)'}`);
-    if (!telOk || !szaOk) process.exitCode = 1;
-    out[m] = { teliszalami: top5(tel), szalami: top5(sza), telOk, szaOk };
-    // remove fixture rows again so the problem-word table stays seed-only
-    const db = api.__benchRaw;
+    const telOk = tel[0]?.id === PICK_SEED;
+    const szaOk = sza[0]?.id === PICK_SEED;
+    console.log(`[${m}] teliszalami top3: ${top(tel, 3).join(' | ')} -> ${telOk ? 'PASS' : 'FAIL (seed not #1)'}`);
+    console.log(`[${m}] szalami top3:     ${top(sza, 3).join(' | ')} -> ${szaOk ? 'PASS' : 'FAIL (seed not #1)'}`);
+    // a cached OFF row the user HAS logged keeps its history boost above the seed
+    const logged = OFF_FIXTURE[3]; // 'Szalámi szeletelt'
+    await api.addEntry({ date: '2026-10-08', meal: 'snack', food: logged, grams: 30 });
+    const szaLogged = await search('szalami');
+    const loggedOk = szaLogged[0]?.id === logged.id && szaLogged[1]?.id === PICK_SEED;
+    console.log(`[${m}] szalami after logging "${logged.name}" once, top3: ${top(szaLogged, 3).join(' | ')} -> ${loggedOk ? 'PASS' : 'FAIL (logged OFF not #1 / seed not #2)'}`);
+    if (!telOk || !szaOk || !loggedOk) process.exitCode = 1;
+    out[m] = { teliszalami: top(tel, 5), szalami: top(sza, 5), szalamiAfterLogging: top(szaLogged, 5), telOk, szaOk, loggedOk };
+    // clean up so the problem-word table stays seed-only
+    db.prepare(`DELETE FROM entries WHERE food_id = ?`).run(logged.id);
     db.prepare(`DELETE FROM foods WHERE id IN (${OFF_FIXTURE.map(() => '?').join(',')})`).run(...OFF_FIXTURE.map((f) => f.id));
   }
   result.offCacheRanking = out;
