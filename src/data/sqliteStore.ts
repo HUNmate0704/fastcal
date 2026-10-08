@@ -156,6 +156,12 @@ function trigramMatchExpr(variants: string[][]): string | null {
   return parts.length ? parts.join(' OR ') : null;
 }
 
+/** Opt-in search ranking debug (web: add `?debug=search` to the URL). */
+const SEARCH_DEBUG =
+  typeof window !== 'undefined' &&
+  typeof window.location?.search === 'string' &&
+  /[?&]debug=search\b/.test(window.location.search);
+
 type Candidate = { row: FoodRow; tier: number; uses: number };
 
 /**
@@ -300,6 +306,28 @@ async function searchLocal(q: string, limit = LOCAL_RESULT_LIMIT): Promise<Searc
   const byRank = (a: (typeof hits)[number], b: (typeof hits)[number]) =>
     a.tier - b.tier || offRank(a) - offRank(b) || (b.score || 0) - (a.score || 0) || b.uses - a.uses;
   hits.sort(byRank);
+  if (SEARCH_DEBUG) {
+    const rows = hits.map((h, i) => ({
+      i,
+      name: h.name,
+      source: h.source,
+      tier: h.tier,
+      offRank: offRank(h),
+      uses: h.uses,
+      score: h.score,
+    }));
+    const info = {
+      q: qq,
+      variants,
+      ftsReady: isFtsReady(),
+      ftsOk,
+      trigramReady: isTrigramReady(),
+      strongHits: strongHits(found),
+      rows,
+    };
+    (globalThis as any).__fastcalSearchDebug = info;
+    console.log('[search-debug]', JSON.stringify(info));
+  }
 
   // Cut only after ranking. The most-used matching history foods always keep a
   // slot: any that fell below the cut replace the lowest-ranked non-history hits.
