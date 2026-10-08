@@ -59,6 +59,8 @@ CREATE TABLE IF NOT EXISTS entries (
 
 CREATE INDEX IF NOT EXISTS idx_entries_date ON entries(date);
 CREATE INDEX IF NOT EXISTS idx_entries_created ON entries(created_at DESC);
+-- search history boost + frequentFoods look up entries by food_id
+CREATE INDEX IF NOT EXISTS idx_entries_food ON entries(food_id);
 CREATE INDEX IF NOT EXISTS idx_foods_ean ON foods(ean);
 
 CREATE TABLE IF NOT EXISTS meta (
