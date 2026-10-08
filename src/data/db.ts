@@ -2,6 +2,8 @@ import * as SQLite from 'expo-sqlite';
 import usdaSeed from './usdaSeed.json';
 import huChainsSeed from './huChainsSeed.json';
 import huGrocerySeed from './huGrocerySeed.json';
+import huMissingWordsSeed from './huMissingWordsSeed.json';
+import { foodNameNorm } from './normalize';
 
 export type FoodRow = {
   id: string;
@@ -15,9 +17,17 @@ export type FoodRow = {
   ean: string | null;
   serving_grams: number | null;
   serving_label: string | null;
+  /** folded name + brand (see normalize.ts); LIKE fallback when FTS5 is missing */
+  name_norm?: string | null;
 };
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
+/** True when the prefix FTS5 index (foods_fts) exists (false on web wasm builds without fts5). */
+let ftsReady = false;
+
+export function isFtsReady() {
+  return ftsReady;
+}
 /** True once the trigram FTS index (foods_tri) exists and is backfilled. */
 let trigramReady = false;
 
@@ -40,6 +50,18 @@ async function rebuildFts(db: SQLite.SQLiteDatabase) {
     }
   }
 }
+
+// Update triggers fire only when indexed columns are in the SET list (upsertFood
+// always sets name+brand), so writes to other columns (e.g. the name_norm backfill)
+// don't re-index FTS rows.
+const FOODS_FTS_AU = `CREATE TRIGGER IF NOT EXISTS foods_au AFTER UPDATE OF name, brand ON foods BEGIN
+  INSERT INTO foods_fts(foods_fts, rowid, id, name, brand) VALUES('delete', old.rowid, old.id, old.name, coalesce(old.brand,''));
+  INSERT INTO foods_fts(rowid, id, name, brand) VALUES (new.rowid, new.id, new.name, coalesce(new.brand,''));
+END;`;
+const FOODS_TRI_AU = `CREATE TRIGGER IF NOT EXISTS foods_tri_au AFTER UPDATE OF name, brand ON foods BEGIN
+  INSERT INTO foods_tri(foods_tri, rowid, name, brand) VALUES('delete', old.rowid, old.name, coalesce(old.brand,''));
+  INSERT INTO foods_tri(rowid, name, brand) VALUES (new.rowid, new.name, coalesce(new.brand,''));
+END;`;
 
 export function getDb() {
   if (!dbPromise) dbPromise = openAndMigrate();
@@ -107,13 +129,12 @@ END;
 CREATE TRIGGER IF NOT EXISTS foods_ad AFTER DELETE ON foods BEGIN
   INSERT INTO foods_fts(foods_fts, rowid, id, name, brand) VALUES('delete', old.rowid, old.id, old.name, coalesce(old.brand,''));
 END;
-CREATE TRIGGER IF NOT EXISTS foods_au AFTER UPDATE ON foods BEGIN
-  INSERT INTO foods_fts(foods_fts, rowid, id, name, brand) VALUES('delete', old.rowid, old.id, old.name, coalesce(old.brand,''));
-  INSERT INTO foods_fts(rowid, id, name, brand) VALUES (new.rowid, new.id, new.name, coalesce(new.brand,''));
-END;
+${FOODS_FTS_AU}
 `);
+    ftsReady = true;
   } catch {
-    // FTS unavailable — LIKE fallback in search
+    // FTS unavailable (e.g. web wasm build) — name_norm LIKE fallback in search
+    ftsReady = false;
   }
 
   // Trigram FTS5 for in-word matches (HU compounds: "szalámi" -> "téliszalámi",
@@ -134,10 +155,7 @@ END;
 CREATE TRIGGER IF NOT EXISTS foods_tri_ad AFTER DELETE ON foods BEGIN
   INSERT INTO foods_tri(foods_tri, rowid, name, brand) VALUES('delete', old.rowid, old.name, coalesce(old.brand,''));
 END;
-CREATE TRIGGER IF NOT EXISTS foods_tri_au AFTER UPDATE ON foods BEGIN
-  INSERT INTO foods_tri(foods_tri, rowid, name, brand) VALUES('delete', old.rowid, old.name, coalesce(old.brand,''));
-  INSERT INTO foods_tri(rowid, name, brand) VALUES (new.rowid, new.name, coalesce(new.brand,''));
-END;
+${FOODS_TRI_AU}
 `);
     trigramReady = true;
   } catch {
@@ -156,6 +174,12 @@ END;
   } catch {
     /* exists */
   }
+  // accent-folded name + brand for the LIKE fallback (filled in JS on every write)
+  try {
+    await db.execAsync(`ALTER TABLE foods ADD COLUMN name_norm TEXT`);
+  } catch {
+    /* exists */
+  }
 
   const seeded = await db.getFirstAsync<{ value: string }>(
     `SELECT value FROM meta WHERE key = 'usda_seed_v1'`
@@ -171,14 +195,15 @@ END;
         carbs100: number;
       }>) {
         await db.runAsync(
-          `INSERT OR IGNORE INTO foods (id, name, brand, kcal100, protein100, fat100, carbs100, source, ean)
-           VALUES (?, ?, NULL, ?, ?, ?, ?, 'usda', NULL)`,
+          `INSERT OR IGNORE INTO foods (id, name, brand, kcal100, protein100, fat100, carbs100, source, ean, name_norm)
+           VALUES (?, ?, NULL, ?, ?, ?, ?, 'usda', NULL, ?)`,
           f.id,
           f.name,
           f.kcal100,
           f.protein100,
           f.fat100,
-          f.carbs100
+          f.carbs100,
+          foodNameNorm(f.name)
         );
       }
       await db.runAsync(
@@ -208,8 +233,8 @@ END;
     await db.withTransactionAsync(async () => {
       for (const f of items) {
         await db.runAsync(
-          `INSERT OR REPLACE INTO foods (id, name, brand, kcal100, protein100, fat100, carbs100, source, ean, serving_grams, serving_label)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'chain', NULL, ?, ?)`,
+          `INSERT OR REPLACE INTO foods (id, name, brand, kcal100, protein100, fat100, carbs100, source, ean, serving_grams, serving_label, name_norm)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'chain', NULL, ?, ?, ?)`,
           f.id,
           f.name,
           f.brand ?? null,
@@ -218,7 +243,8 @@ END;
           f.fat100,
           f.carbs100,
           f.servingGrams ?? null,
-          f.servingLabel ?? null
+          f.servingLabel ?? null,
+          foodNameNorm(f.name, f.brand)
         );
       }
       await db.runAsync(
@@ -249,8 +275,8 @@ END;
     await db.withTransactionAsync(async () => {
       for (const f of groceryItems) {
         await db.runAsync(
-          `INSERT OR REPLACE INTO foods (id, name, brand, kcal100, protein100, fat100, carbs100, source, ean, serving_grams, serving_label)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'grocery', ?, ?, ?)`,
+          `INSERT OR REPLACE INTO foods (id, name, brand, kcal100, protein100, fat100, carbs100, source, ean, serving_grams, serving_label, name_norm)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'grocery', ?, ?, ?, ?)`,
           f.id,
           f.name,
           f.brand ?? null,
@@ -260,7 +286,8 @@ END;
           f.carbs100,
           f.meta?.ean ?? null,
           f.servingGrams ?? null,
-          f.servingLabel ?? null
+          f.servingLabel ?? null,
+          foodNameNorm(f.name, f.brand)
         );
       }
       await db.runAsync(
@@ -269,6 +296,83 @@ END;
     });
     await rebuildFts(db);
     seededThisLaunch = true;
+  }
+
+  // Common HU words that had 0 local hits (túró rudi, sonka, pizza, kávé, ...).
+  // Items keep their own source ('grocery' = OFF/HU retail, 'usda' = FDC generic).
+  const missingWordsSeeded = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM meta WHERE key = 'hu_missing_words_seed_v1'`
+  );
+  if (!missingWordsSeeded) {
+    const mwItems = (huMissingWordsSeed as { items: Array<{
+      id: string;
+      name: string;
+      brand?: string;
+      kcal100: number;
+      protein100: number;
+      fat100: number;
+      carbs100: number;
+      source?: string;
+      servingGrams?: number;
+      servingLabel?: string;
+      meta?: { ean?: string };
+    }> }).items;
+    await db.withTransactionAsync(async () => {
+      for (const f of mwItems) {
+        await db.runAsync(
+          `INSERT OR REPLACE INTO foods (id, name, brand, kcal100, protein100, fat100, carbs100, source, ean, serving_grams, serving_label, name_norm)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          f.id,
+          f.name,
+          f.brand ?? null,
+          f.kcal100,
+          f.protein100,
+          f.fat100,
+          f.carbs100,
+          f.source === 'usda' ? 'usda' : 'grocery',
+          f.meta?.ean ?? null,
+          f.servingGrams ?? null,
+          f.servingLabel ?? null,
+          foodNameNorm(f.name, f.brand)
+        );
+      }
+      await db.runAsync(
+        `INSERT OR REPLACE INTO meta (key, value) VALUES ('hu_missing_words_seed_v1', '1')`
+      );
+    });
+    await rebuildFts(db);
+    seededThisLaunch = true;
+  }
+
+  // Existing installs: fill name_norm once for rows written before the column
+  // existed (works without FTS5, e.g. web). New writes fill it directly.
+  const normDone = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM meta WHERE key = 'foods_name_norm_v1'`
+  );
+  if (!normDone) {
+    // older installs have "AFTER UPDATE ON foods" triggers: narrow them first so
+    // the backfill below doesn't re-index every row in both FTS indexes
+    if (ftsReady) {
+      await db.execAsync(`DROP TRIGGER IF EXISTS foods_au;\n${FOODS_FTS_AU}`);
+    }
+    if (trigramReady) {
+      await db.execAsync(`DROP TRIGGER IF EXISTS foods_tri_au;\n${FOODS_TRI_AU}`);
+    }
+    const rows = await db.getAllAsync<{ rowid: number; name: string; brand: string | null }>(
+      `SELECT rowid, name, brand FROM foods WHERE name_norm IS NULL`
+    );
+    await db.withTransactionAsync(async () => {
+      for (const r of rows) {
+        await db.runAsync(
+          `UPDATE foods SET name_norm = ? WHERE rowid = ?`,
+          foodNameNorm(r.name, r.brand),
+          r.rowid
+        );
+      }
+      await db.runAsync(
+        `INSERT OR REPLACE INTO meta (key, value) VALUES ('foods_name_norm_v1', '1')`
+      );
+    });
   }
 
   // Existing installs: backfill the trigram index once (versioned).
@@ -308,10 +412,11 @@ export async function upsertFood(food: {
 }) {
   const db = await getDb();
   await db.runAsync(
-    `INSERT INTO foods (id, name, brand, kcal100, protein100, fat100, carbs100, source, ean, serving_grams, serving_label)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO foods (id, name, brand, kcal100, protein100, fat100, carbs100, source, ean, serving_grams, serving_label, name_norm)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        name=excluded.name,
+       name_norm=excluded.name_norm,
        brand=excluded.brand,
        kcal100=excluded.kcal100,
        protein100=excluded.protein100,
@@ -331,7 +436,8 @@ export async function upsertFood(food: {
     food.source,
     food.ean ?? null,
     food.servingGrams ?? null,
-    food.servingLabel ?? null
+    food.servingLabel ?? null,
+    foodNameNorm(food.name, food.brand)
   );
 }
 

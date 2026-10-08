@@ -1,0 +1,525 @@
+{
+  "_comment": "Seed candidates for zero-hit HU search words (bench 2026-10-08, scope incl. kávé). OFF items verified via v2 product API; USDA via FDC API. No invented numbers. Loaded under meta key hu_missing_words_seed_v1. _optionalExtras from the candidates file intentionally NOT included.",
+  "_sources": "fastcal-research/huMissingWordsSeed-candidates.json + missing-words-notes.md (2026-10-08)",
+  "items": [
+    {
+      "id": "hu-pottyos-turo-rudi-natur-30",
+      "name": "Túró Rudi natúr (Pöttyös)",
+      "brand": "Pöttyös",
+      "kcal100": 340,
+      "protein100": 10,
+      "fat100": 17,
+      "carbs100": 39,
+      "servingGrams": 30,
+      "servingLabel": "1 db (30 g)",
+      "source": "grocery",
+      "meta": {
+        "ean": "5998201002907",
+        "sourceUrl": "https://world.openfoodfacts.org/product/5998201002907",
+        "asOf": "2026-10-08",
+        "searchWord": "túró rudi",
+        "verifiedVia": "https://world.openfoodfacts.org/api/v2/product/5998201002907.json",
+        "note": "Manufacturer page https://www.pottyos.hu/termek-turo-rudi-natur-30g.php lists 339 kcal / P11 F15 C39 (newer label); OFF values used"
+      }
+    },
+    {
+      "id": "hu-pottyos-turo-rudi-orias-natur",
+      "name": "Túró Rudi Óriás natúr (Pöttyös)",
+      "brand": "Pöttyös",
+      "kcal100": 339.2,
+      "protein100": 11.0,
+      "fat100": 15.1,
+      "carbs100": 39.2,
+      "servingGrams": 51,
+      "servingLabel": "1 db (51 g)",
+      "source": "grocery",
+      "meta": {
+        "ean": "5998201080394",
+        "sourceUrl": "https://world.openfoodfacts.org/product/5998201080394",
+        "asOf": "2026-10-08",
+        "searchWord": "túró rudi",
+        "verifiedVia": "https://world.openfoodfacts.org/api/v2/product/5998201080394.json"
+      }
+    },
+    {
+      "id": "hu-pottyos-turo-rudi-protein",
+      "name": "Túró Rudi Protein (Pöttyös)",
+      "brand": "Pöttyös",
+      "kcal100": 274.5,
+      "protein100": 18.2,
+      "fat100": 14.3,
+      "carbs100": 25.5,
+      "servingGrams": 51,
+      "servingLabel": "1 db (51 g)",
+      "source": "grocery",
+      "meta": {
+        "ean": "5998200751875",
+        "sourceUrl": "https://world.openfoodfacts.org/product/5998200751875",
+        "asOf": "2026-10-08",
+        "searchWord": "túró rudi",
+        "verifiedVia": "https://world.openfoodfacts.org/api/v2/product/5998200751875.json"
+      }
+    },
+    {
+      "id": "hu-spar-sonka-csirkemell",
+      "name": "Sonka, csirkemell (SPAR)",
+      "brand": "SPAR",
+      "kcal100": 111,
+      "protein100": 19,
+      "fat100": 3.5,
+      "carbs100": 0.9,
+      "servingGrams": 14.2,
+      "servingLabel": "1 szelet (14,2 g)",
+      "source": "grocery",
+      "meta": {
+        "ean": "5999033896719",
+        "sourceUrl": "https://world.openfoodfacts.org/product/5999033896719",
+        "asOf": "2026-10-08",
+        "searchWord": "sonka",
+        "verifiedVia": "https://world.openfoodfacts.org/api/v2/product/5999033896719.json"
+      }
+    },
+    {
+      "id": "hu-pick-sonka-bukkerdei",
+      "name": "Sonka, Bükkerdei szeletelt (Pick)",
+      "brand": "Pick",
+      "kcal100": 269,
+      "protein100": 24,
+      "fat100": 19,
+      "carbs100": 0.5,
+      "servingGrams": 90,
+      "servingLabel": "1 csomag (90 g)",
+      "source": "grocery",
+      "meta": {
+        "sourceUrl": "https://coopshop.hu/termek/pick-bukkerdei-szeletelt-sonka-bukkfaval-fustolt-erlelt-90-g/",
+        "asOf": "2026-10-08",
+        "searchWord": "sonka",
+        "note": "No EAN found publicly; nutrition from CoopShop HU retail label panel"
+      }
+    },
+    {
+      "id": "usda-sonka-szeletelt",
+      "name": "Sonka, szeletelt (általános)",
+      "brand": "USDA FDC",
+      "kcal100": 164,
+      "protein100": 16.6,
+      "fat100": 8.8,
+      "carbs100": 3.6,
+      "servingGrams": 28,
+      "servingLabel": "1 szelet (28 g)",
+      "source": "usda",
+      "meta": {
+        "fdcId": 173864,
+        "fdcDescription": "Ham, sliced, regular (approximately 11% fat)",
+        "sourceUrl": "https://fdc.nal.usda.gov/food-details/173864/nutrients",
+        "asOf": "2026-10-08",
+        "searchWord": "sonka"
+      }
+    },
+    {
+      "id": "hu-droetker-pizza-ristorante-quattro-formaggi",
+      "name": "Pizza Ristorante Quattro Formaggi (Dr. Oetker)",
+      "brand": "Dr. Oetker",
+      "kcal100": 265,
+      "protein100": 11,
+      "fat100": 14,
+      "carbs100": 24,
+      "servingGrams": 340,
+      "servingLabel": "1 pizza (340 g)",
+      "source": "grocery",
+      "meta": {
+        "ean": "4001724027348",
+        "sourceUrl": "https://world.openfoodfacts.org/product/4001724027348",
+        "asOf": "2026-10-08",
+        "searchWord": "pizza",
+        "verifiedVia": "https://world.openfoodfacts.org/api/v2/product/4001724027348.json"
+      }
+    },
+    {
+      "id": "hu-pizzadoro-pizza-prosciutto-funghi",
+      "name": "Pizza prosciutto e funghi (Pizza d'Oro)",
+      "brand": "Pizza d'Oro",
+      "kcal100": 209,
+      "protein100": 9.6,
+      "fat100": 5.4,
+      "carbs100": 29,
+      "servingGrams": 390,
+      "servingLabel": "1 pizza (390 g)",
+      "source": "grocery",
+      "meta": {
+        "ean": "5999886276591",
+        "sourceUrl": "https://world.openfoodfacts.org/product/5999886276591",
+        "asOf": "2026-10-08",
+        "searchWord": "pizza",
+        "verifiedVia": "https://world.openfoodfacts.org/api/v2/product/5999886276591.json"
+      }
+    },
+    {
+      "id": "usda-pizza-sajtos",
+      "name": "Pizza, sajtos (fagyasztott, sütve)",
+      "brand": "USDA FDC",
+      "kcal100": 268,
+      "protein100": 10.4,
+      "fat100": 12.3,
+      "carbs100": 29.0,
+      "servingGrams": 81,
+      "servingLabel": "1 szelet (81 g)",
+      "source": "usda",
+      "meta": {
+        "fdcId": 170317,
+        "fdcDescription": "Pizza, cheese topping, regular crust, frozen, cooked",
+        "sourceUrl": "https://fdc.nal.usda.gov/food-details/170317/nutrients",
+        "asOf": "2026-10-08",
+        "searchWord": "pizza"
+      }
+    },
+    {
+      "id": "usda-kebab-gyros-szendvics",
+      "name": "Kebab / gyros szendvics (általános)",
+      "brand": "USDA FDC",
+      "kcal100": 184,
+      "protein100": 11.2,
+      "fat100": 6.8,
+      "carbs100": 18.8,
+      "servingGrams": 200,
+      "servingLabel": "1 db (200 g)",
+      "source": "usda",
+      "meta": {
+        "fdcId": 2706962,
+        "fdcDescription": "Gyro sandwich",
+        "sourceUrl": "https://fdc.nal.usda.gov/food-details/2706962/nutrients",
+        "asOf": "2026-10-08",
+        "searchWord": "kebab",
+        "note": "Only verified source found; no HU kebab/gyros product with complete nutriments on OFF"
+      }
+    },
+    {
+      "id": "hu-alfoldi-tejfol-20",
+      "name": "Tejföl 20% (Alföldi, Aldi)",
+      "brand": "Alföldi Tej",
+      "kcal100": 207,
+      "protein100": 2.5,
+      "fat100": 20,
+      "carbs100": 3.8,
+      "source": "grocery",
+      "meta": {
+        "ean": "5998200564369",
+        "sourceUrl": "https://world.openfoodfacts.org/product/5998200564369",
+        "asOf": "2026-10-08",
+        "searchWord": "tejföl",
+        "verifiedVia": "https://world.openfoodfacts.org/api/v2/product/5998200564369.json"
+      }
+    },
+    {
+      "id": "hu-sbudget-tejfol-20",
+      "name": "Tejföl 20% (S-Budget, SPAR)",
+      "brand": "S-Budget",
+      "kcal100": 207,
+      "protein100": 2.5,
+      "fat100": 20,
+      "carbs100": 3.8,
+      "source": "grocery",
+      "meta": {
+        "ean": "5999033866217",
+        "sourceUrl": "https://world.openfoodfacts.org/product/5999033866217",
+        "asOf": "2026-10-08",
+        "searchWord": "tejföl",
+        "verifiedVia": "https://world.openfoodfacts.org/api/v2/product/5999033866217.json"
+      }
+    },
+    {
+      "id": "hu-alfoldi-tejfol-12",
+      "name": "Tejföl 12% (Alföldi)",
+      "brand": "Alföldi Tej",
+      "kcal100": 135,
+      "protein100": 3,
+      "fat100": 12,
+      "carbs100": 3.4,
+      "source": "grocery",
+      "meta": {
+        "ean": "5998200560521",
+        "sourceUrl": "https://world.openfoodfacts.org/product/5998200560521",
+        "asOf": "2026-10-08",
+        "searchWord": "tejföl",
+        "verifiedVia": "https://world.openfoodfacts.org/api/v2/product/5998200560521.json"
+      }
+    },
+    {
+      "id": "hu-gyulai-kolbasz",
+      "name": "Kolbász, gyulai (Gyulai)",
+      "brand": "Gyulai",
+      "kcal100": 479,
+      "protein100": 22,
+      "fat100": 43,
+      "carbs100": 1,
+      "source": "grocery",
+      "meta": {
+        "ean": "5998001662790",
+        "sourceUrl": "https://world.openfoodfacts.org/product/5998001662790",
+        "asOf": "2026-10-08",
+        "searchWord": "kolbász",
+        "verifiedVia": "https://world.openfoodfacts.org/api/v2/product/5998001662790.json"
+      }
+    },
+    {
+      "id": "hu-pick-kolbasz-mives-paraszt",
+      "name": "Kolbász, Míves paraszt (Pick)",
+      "brand": "Pick",
+      "kcal100": 499,
+      "protein100": 23.4,
+      "fat100": 44.8,
+      "carbs100": 0.5,
+      "source": "grocery",
+      "meta": {
+        "ean": "5998003115676",
+        "sourceUrl": "https://world.openfoodfacts.org/product/5998003115676",
+        "asOf": "2026-10-08",
+        "searchWord": "kolbász",
+        "verifiedVia": "https://world.openfoodfacts.org/api/v2/product/5998003115676.json"
+      }
+    },
+    {
+      "id": "hu-nadudvari-kolbasz-debreceni",
+      "name": "Kolbász, csemege debreceni (Nádudvari)",
+      "brand": "Nádudvari",
+      "kcal100": 275,
+      "protein100": 13,
+      "fat100": 24,
+      "carbs100": 1.2,
+      "source": "grocery",
+      "meta": {
+        "ean": "5998202960909",
+        "sourceUrl": "https://world.openfoodfacts.org/product/5998202960909",
+        "asOf": "2026-10-08",
+        "searchWord": "kolbász",
+        "verifiedVia": "https://world.openfoodfacts.org/api/v2/product/5998202960909.json"
+      }
+    },
+    {
+      "id": "hu-milka-csoki-alpenmilch",
+      "name": "Csoki, Milka alpesi tejcsokoládé",
+      "brand": "Milka",
+      "kcal100": 539,
+      "protein100": 6.5,
+      "fat100": 31,
+      "carbs100": 57,
+      "servingGrams": 30,
+      "servingLabel": "1 adag (30 g)",
+      "source": "grocery",
+      "meta": {
+        "ean": "7622210690883",
+        "sourceUrl": "https://world.openfoodfacts.org/product/7622210690883",
+        "asOf": "2026-10-08",
+        "searchWord": "csoki",
+        "verifiedVia": "https://world.openfoodfacts.org/api/v2/product/7622210690883.json"
+      }
+    },
+    {
+      "id": "hu-boci-csoki-feher",
+      "name": "Csoki, Boci fehér csokoládé",
+      "brand": "Boci",
+      "kcal100": 547,
+      "protein100": 4.5,
+      "fat100": 30.9,
+      "carbs100": 62.8,
+      "servingGrams": 90,
+      "servingLabel": "1 tábla (90 g)",
+      "source": "grocery",
+      "meta": {
+        "ean": "7613036168755",
+        "sourceUrl": "https://world.openfoodfacts.org/product/7613036168755",
+        "asOf": "2026-10-08",
+        "searchWord": "csoki",
+        "verifiedVia": "https://world.openfoodfacts.org/api/v2/product/7613036168755.json"
+      }
+    },
+    {
+      "id": "usda-csoki-tejcsokolade",
+      "name": "Csoki, tejcsokoládé (általános)",
+      "brand": "USDA FDC",
+      "kcal100": 535,
+      "protein100": 7.7,
+      "fat100": 29.7,
+      "carbs100": 59.4,
+      "servingGrams": 44,
+      "servingLabel": "1 szelet (44 g)",
+      "source": "usda",
+      "meta": {
+        "fdcId": 167587,
+        "fdcDescription": "Candies, milk chocolate",
+        "sourceUrl": "https://fdc.nal.usda.gov/food-details/167587/nutrients",
+        "asOf": "2026-10-08",
+        "searchWord": "csoki"
+      }
+    },
+    {
+      "id": "hu-gyori-edes-keksz-kakaos",
+      "name": "Keksz, Győri Édes kakaós",
+      "brand": "Győri Édes",
+      "kcal100": 484,
+      "protein100": 6,
+      "fat100": 21,
+      "carbs100": 67,
+      "servingGrams": 30,
+      "servingLabel": "1 adag (30 g)",
+      "source": "grocery",
+      "meta": {
+        "ean": "7622201760267",
+        "sourceUrl": "https://world.openfoodfacts.org/product/7622201760267",
+        "asOf": "2026-10-08",
+        "searchWord": "keksz",
+        "verifiedVia": "https://world.openfoodfacts.org/api/v2/product/7622201760267.json",
+        "note": "Serving 30 g from ecofamily.hu retail panel (150 g pack): https://ecofamily.hu/p/gyori-edes-kakaos-omlos-keksz-150-g"
+      }
+    },
+    {
+      "id": "hu-detki-keksz-haztartasi",
+      "name": "Keksz, háztartási (Detki)",
+      "brand": "Detki",
+      "kcal100": 400,
+      "protein100": 9,
+      "fat100": 6.1,
+      "carbs100": 75.6,
+      "source": "grocery",
+      "meta": {
+        "ean": "5997380350298",
+        "sourceUrl": "https://world.openfoodfacts.org/product/5997380350298",
+        "asOf": "2026-10-08",
+        "searchWord": "keksz",
+        "verifiedVia": "https://world.openfoodfacts.org/api/v2/product/5997380350298.json"
+      }
+    },
+    {
+      "id": "usda-keksz-vajas",
+      "name": "Keksz, vajas / omlós (általános)",
+      "brand": "USDA FDC",
+      "kcal100": 464,
+      "protein100": 5.4,
+      "fat100": 19.6,
+      "carbs100": 67.3,
+      "source": "usda",
+      "meta": {
+        "fdcId": 2707970,
+        "fdcDescription": "Cookie, butter or sugar",
+        "sourceUrl": "https://fdc.nal.usda.gov/food-details/2707970/nutrients",
+        "asOf": "2026-10-08",
+        "searchWord": "keksz"
+      }
+    },
+    {
+      "id": "usda-krumpli-nyers",
+      "name": "Krumpli, nyers (burgonya, héjas)",
+      "brand": "USDA FDC",
+      "kcal100": 77,
+      "protein100": 2.1,
+      "fat100": 0.1,
+      "carbs100": 17.5,
+      "servingGrams": 213,
+      "servingLabel": "1 közepes db (213 g)",
+      "source": "usda",
+      "meta": {
+        "fdcId": 170026,
+        "fdcDescription": "Potatoes, flesh and skin, raw",
+        "sourceUrl": "https://fdc.nal.usda.gov/food-details/170026/nutrients",
+        "asOf": "2026-10-08",
+        "searchWord": "krumpli",
+        "note": "Optional: krumpli now resolves via synonym to \"Burgonya főtt\" + chain fries; this generic item is not in seed yet"
+      }
+    },
+    {
+      "id": "usda-krumpli-sult-hasab",
+      "name": "Krumpli, sült hasáb (hasábburgonya, fagyasztott, sütőben)",
+      "brand": "USDA FDC",
+      "kcal100": 168,
+      "protein100": 2.7,
+      "fat100": 5.2,
+      "carbs100": 28.7,
+      "source": "usda",
+      "meta": {
+        "fdcId": 170118,
+        "fdcDescription": "Potatoes, french fried, all types, salt not added in processing, frozen, oven-heated",
+        "sourceUrl": "https://fdc.nal.usda.gov/food-details/170118/nutrients",
+        "asOf": "2026-10-08",
+        "searchWord": "krumpli",
+        "note": "Optional: krumpli now resolves via synonym to \"Burgonya főtt\" + chain fries; this generic item is not in seed yet"
+      }
+    },
+    {
+      "id": "usda-kave-fekete",
+      "name": "Kávé, fekete (főzött, cukor nélkül)",
+      "brand": "USDA FDC",
+      "kcal100": 1,
+      "protein100": 0.1,
+      "fat100": 0.0,
+      "carbs100": 0.0,
+      "source": "usda",
+      "meta": {
+        "fdcId": 2710375,
+        "fdcDescription": "Coffee, brewed",
+        "sourceUrl": "https://fdc.nal.usda.gov/food-details/2710375/nutrients",
+        "asOf": "2026-10-08",
+        "searchWord": "kávé",
+        "note": "Liquid; 100 g ≈ 100 ml"
+      }
+    },
+    {
+      "id": "usda-kave-espresso",
+      "name": "Kávé, espresso (presszó)",
+      "brand": "USDA FDC",
+      "kcal100": 9,
+      "protein100": 0.1,
+      "fat100": 0.2,
+      "carbs100": 1.7,
+      "servingGrams": 60,
+      "servingLabel": "1 dupla csésze (60 ml)",
+      "source": "usda",
+      "meta": {
+        "fdcId": 2710378,
+        "fdcDescription": "Coffee, espresso",
+        "sourceUrl": "https://fdc.nal.usda.gov/food-details/2710378/nutrients",
+        "asOf": "2026-10-08",
+        "searchWord": "kávé"
+      }
+    },
+    {
+      "id": "usda-kave-cappuccino",
+      "name": "Kávé, cappuccino (tejjel)",
+      "brand": "USDA FDC",
+      "kcal100": 27,
+      "protein100": 1.7,
+      "fat100": 1.0,
+      "carbs100": 2.8,
+      "servingGrams": 240,
+      "servingLabel": "1 csésze (240 ml)",
+      "source": "usda",
+      "meta": {
+        "fdcId": 2710472,
+        "fdcDescription": "Coffee, Cappuccino",
+        "sourceUrl": "https://fdc.nal.usda.gov/food-details/2710472/nutrients",
+        "asOf": "2026-10-08",
+        "searchWord": "kávé",
+        "note": "Alt: Coffee, Latte FDC 2710386 = 43 kcal / P2.8 F1.6 C4.4 per 100 g"
+      }
+    },
+    {
+      "id": "hu-nescafe-kave-3in1-classic",
+      "name": "Kávé, Nescafé 3in1 Classic (instant por)",
+      "brand": "Nescafé",
+      "kcal100": 429,
+      "protein100": 1.3,
+      "fat100": 12.8,
+      "carbs100": 75.8,
+      "servingGrams": 17,
+      "servingLabel": "1 tasak (17 g)",
+      "source": "grocery",
+      "meta": {
+        "ean": "7613036842198",
+        "sourceUrl": "https://world.openfoodfacts.org/product/7613036842198",
+        "asOf": "2026-10-08",
+        "searchWord": "kávé",
+        "verifiedVia": "https://world.openfoodfacts.org/api/v2/product/7613036842198.json",
+        "note": "Per 100 g dry powder. OFF complete (countries tag only Germany, HU-language label); HU retail panel identical: https://shop.hosso.hu/nescafe-3in1-classic-crema-1017gr-810"
+      }
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import type { DataApi, DiaryEntry, Food, Meal, SearchHit } from '../types';
 import { fetchOffByEan, searchOff } from './off';
-import { FoodRow, getDb, isTrigramReady, rowToFood, upsertFood } from './db';
+import { FoodRow, getDb, isFtsReady, isTrigramReady, rowToFood, upsertFood } from './db';
+import { normalizeText } from './normalize';
 
 function uid() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -45,37 +46,8 @@ function entryFromRow(r: {
 }
 
 
-const ACCENT_MAP: Record<string, string> = {
-  á: 'a',
-  é: 'e',
-  í: 'i',
-  ó: 'o',
-  ö: 'o',
-  ő: 'o',
-  ú: 'u',
-  ü: 'u',
-  ű: 'u',
-  à: 'a',
-  è: 'e',
-  ì: 'i',
-  ò: 'o',
-  ù: 'u',
-  ä: 'a',
-  ë: 'e',
-  ï: 'i',
-  ç: 'c',
-  ñ: 'n',
-  ß: 'ss',
-};
-const ACCENT_RE = /[áéíóöőúüűàèìòùäëïçñß]/g;
-const NON_ASCII_RE = /[^\x00-\x7f]/;
-
 /** Lowercase, trim, collapse spaces; strip HU accents for compare. */
-function normalizeQuery(s: string): string {
-  let out = s.toLowerCase().replace(ACCENT_RE, (ch) => ACCENT_MAP[ch] ?? ch);
-  if (NON_ASCII_RE.test(out)) out = out.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  return out.trim().replace(/\s+/g, ' ');
-}
+const normalizeQuery = normalizeText;
 
 /** nameMatchBoost on already-normalized name / query. */
 function nameMatchBoostNorm(nn: string, nq: string): number {
@@ -219,31 +191,45 @@ async function collectFts(
   }
 }
 
-/** No FTS5 (e.g. some web builds): substring LIKE per variant. */
+const escapeLike = (t: string) => t.replace(/[\\%_]/g, (m) => `\\${m}`);
+
+/**
+ * No FTS5 (web wasm build) or no trigram: accent-insensitive substring match on
+ * foods.name_norm — every token of a variant must occur (AND), variants are OR'd.
+ * Same shape as collectFts: most-used matching history + top-N candidates
+ * (name starting with the query first, then shorter names).
+ */
 async function collectLike(
   db: Awaited<ReturnType<typeof getDb>>,
   variants: string[][],
-  qq: string,
+  tier: number,
   out: Map<string, Candidate>
 ) {
-  const phrases = [qq, ...variants.map((v) => v.join(' '))];
-  const where = phrases.map(() => `(name LIKE ? OR IFNULL(brand,'') LIKE ?)`).join(' OR ');
-  const params = phrases.flatMap((p) => [`%${p}%`, `%${p}%`]);
-  const rows = await db.getAllAsync<FoodRow>(
-    `SELECT * FROM foods WHERE ${where} LIMIT ${FTS_CANDIDATES * 2}`,
-    ...params
+  const where = variants
+    .map((v) => `(${v.map(() => `name_norm LIKE ? ESCAPE '\\'`).join(' AND ')})`)
+    .join(' OR ');
+  const params = variants.flatMap((v) => v.map((t) => `%${escapeLike(t)}%`));
+  const startsWith = `${escapeLike(variants[0].join(' '))}%`;
+  const rows = await db.getAllAsync<FoodRow & { uses: number }>(
+    `WITH m AS MATERIALIZED (
+       SELECT rowid AS rid, name_norm AS nn, length(name) AS len FROM foods WHERE ${where}
+     )
+     SELECT f.*, h.uses AS uses FROM (
+       SELECT f2.id AS fid, COUNT(*) AS uses FROM m
+       JOIN foods f2 ON f2.rowid = m.rid
+       JOIN entries e ON e.food_id = f2.id
+       GROUP BY f2.id ORDER BY uses DESC LIMIT ${HISTORY_CANDIDATES}
+     ) h JOIN foods f ON f.id = h.fid
+     UNION ALL
+     SELECT f.*, 0 AS uses FROM (
+       SELECT rid FROM m ORDER BY (nn LIKE ? ESCAPE '\\') DESC, len LIMIT ${FTS_CANDIDATES}
+     ) c
+     JOIN foods f ON f.rowid = c.rid`,
+    ...params,
+    startsWith
   );
-  const ids = rows.map((r) => r.id);
-  const useMap = new Map<string, number>();
-  if (ids.length) {
-    const used = await db.getAllAsync<{ food_id: string; c: number }>(
-      `SELECT food_id, COUNT(*) as c FROM entries WHERE food_id IN (${ids.map(() => '?').join(',')}) GROUP BY food_id`,
-      ...ids
-    );
-    for (const u of used) useMap.set(u.food_id, u.c);
-  }
   for (const r of rows) {
-    if (!out.has(r.id)) out.set(r.id, { row: r, tier: 0, uses: useMap.get(r.id) ?? 0 });
+    if (!out.has(r.id)) out.set(r.id, { row: r, tier, uses: r.uses });
   }
 }
 
@@ -261,19 +247,28 @@ async function searchLocal(q: string, limit = LOCAL_RESULT_LIMIT): Promise<Searc
   if (!variants.length) return [];
 
   const found = new Map<string, Candidate>();
-  try {
-    await collectFts(db, 'foods_fts', prefixMatchExpr(variants), 0, found);
-  } catch {
-    await collectLike(db, variants, qq, found);
+  let ftsOk = isFtsReady();
+  if (ftsOk) {
+    try {
+      await collectFts(db, 'foods_fts', prefixMatchExpr(variants), 0, found);
+    } catch {
+      ftsOk = false;
+    }
   }
-  if (found.size < TRIGRAM_MIN_HITS && isTrigramReady()) {
-    const tri = trigramMatchExpr(variants);
+  if (!ftsOk) {
+    // web / no FTS5: accent-insensitive substring match is the primary path
+    await collectLike(db, variants, 0, found);
+  } else if (found.size < TRIGRAM_MIN_HITS) {
+    const tri = isTrigramReady() ? trigramMatchExpr(variants) : null;
     if (tri) {
       try {
         await collectFts(db, 'foods_tri', tri, 1, found);
       } catch {
         /* trigram unavailable */
       }
+    } else if (!isTrigramReady()) {
+      // native SQLite without trigram support: in-word match via name_norm
+      await collectLike(db, variants, 1, found);
     }
   }
 
