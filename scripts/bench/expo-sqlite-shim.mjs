@@ -12,6 +12,7 @@
  *   cost, so on a phone each call is slower than here.
  * - DB path comes from globalThis.__FASTCAL_BENCH_DB_PATH__ (fresh temp file per
  *   run) so cold start can be measured repeatedly.
+ * - globalThis.__FASTCAL_BENCH_NO_FTS__ simulates a SQLite without fts5 (web).
  */
 import Database from 'better-sqlite3';
 
@@ -27,13 +28,30 @@ function kindOf(sql) {
   if (/INSERT OR IGNORE INTO foods/.test(s)) return 'seed insert (usda)';
   if (/INSERT OR REPLACE INTO foods .*'chain'/.test(s)) return 'seed insert (chain)';
   if (/INSERT OR REPLACE INTO foods .*'grocery'/.test(s)) return 'seed insert (grocery)';
+  if (/INSERT OR REPLACE INTO foods \(/.test(s)) return 'seed insert (missing words)';
+  if (/INSERT INTO foods_tri\(foods_tri\) VALUES\('rebuild'\)/.test(s)) return 'trigram rebuild';
+  if (/^UPDATE foods SET name_norm/.test(s)) return 'name_norm backfill update';
+  if (/^SELECT rowid, name, brand FROM foods WHERE name_norm IS NULL/.test(s)) return 'name_norm backfill select';
+  if (/^DROP TRIGGER IF EXISTS foods_(tri_)?au/.test(s)) return 'narrow update triggers';
   if (/^SELECT value FROM meta/.test(s)) return 'meta check';
   if (/INSERT OR REPLACE INTO meta/.test(s)) return 'meta write';
   if (/^(BEGIN|COMMIT|ROLLBACK)/.test(s)) return 'txn begin/commit';
   return s.slice(0, 48);
 }
 
+/**
+ * globalThis.__FASTCAL_BENCH_NO_FTS__ = true simulates the web wasm build
+ * (no fts5 module): CREATE VIRTUAL TABLE ... USING fts5 fails like it does there,
+ * so foods_fts / foods_tri never exist and search takes the LIKE fallback.
+ */
+function rejectFts(sql) {
+  if (globalThis.__FASTCAL_BENCH_NO_FTS__ && /USING\s+fts5/i.test(sql)) {
+    throw new Error('no such module: fts5 (bench: simulated web build)');
+  }
+}
+
 function track(sql, fn) {
+  rejectFts(sql);
   const t0 = performance.now();
   try {
     return fn();

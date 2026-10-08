@@ -13,6 +13,11 @@
  *   node scripts/bench.mjs --doctor           # also run `npx expo-doctor`
  *   node scripts/bench.mjs --no-off --no-scale
  *   node scripts/bench.mjs --write-baseline   # save problem-word results as the "before" file
+ *   node scripts/bench.mjs --web-fallback     # run EVERYTHING without fts5 (simulated web build)
+ *
+ * Search sections always run twice: native (FTS5 + trigram) and forced web
+ * fallback (no fts5 -> name_norm LIKE). Exit code 1 if a required problem word
+ * has 0 hits in either mode, the history regression fails, or a migration check fails.
  *
  * Caveat: this measures a Linux box / Node + SQLite. Phones (JSI bridge,
  * slower CPU + flash) will be slower; use the numbers for relative cost and
@@ -45,6 +50,7 @@ const DO_SCALE = !flag('no-scale');
 const DO_DOCTOR = flag('doctor');
 const DO_BLACKHOLE = !QUICK && !flag('no-blackhole');
 const WRITE_BASELINE = flag('write-baseline');
+const WEB_ALL = flag('web-fallback');
 const BASELINE_FILE = join(ROOT, 'scripts/bench/baseline-problem-words.json');
 
 // ---------- helpers ----------
@@ -112,8 +118,9 @@ async function bundle() {
 }
 let loadSeq = 0;
 /** Fresh module instance => fresh getDb() singleton (true cold start). */
-async function loadFresh(dbPath) {
+async function loadFresh(dbPath, { noFts = WEB_ALL } = {}) {
   globalThis.__FASTCAL_BENCH_DB_PATH__ = dbPath;
+  globalThis.__FASTCAL_BENCH_NO_FTS__ = noFts;
   const t0 = now();
   const mod = await import(`${pathToFileURL(BUNDLE).href}?i=${++loadSeq}`);
   return { mod, importMs: now() - t0 };
@@ -122,7 +129,7 @@ const rawDb = () => globalThis.__FASTCAL_BENCH_LAST_DB__.raw;
 
 const tmpRoot = mkdtempSync(join(tmpdir(), 'fastcal-bench-'));
 const dbFile = (name) => join(tmpRoot, `${name}.db`);
-const result = { machine: {}, coldStart: {}, search: {}, logging: {}, scale: null, off: null, doctor: null };
+const result = { machine: {}, coldStart: {}, search: {}, logging: {}, scale: null, off: null, doctor: null, mode: WEB_ALL ? 'web-fallback-only' : 'native+web' };
 
 // ---------- 1. cold start + seed ----------
 async function benchColdStart() {
@@ -147,16 +154,23 @@ async function benchColdStart() {
         bySource: Object.fromEntries(
           db.prepare('SELECT source, COUNT(*) c FROM foods GROUP BY source').all().map((r) => [r.source, r.c])
         ),
-        ftsRows: db.prepare('SELECT COUNT(*) c FROM foods_fts').get().c,
+        ftsRows: WEB_ALL ? null : db.prepare('SELECT COUNT(*) c FROM foods_fts').get().c,
+        triRows: WEB_ALL ? null : db.prepare('SELECT COUNT(*) c FROM foods_tri').get().c,
+        nameNormNull: db.prepare('SELECT COUNT(*) c FROM foods WHERE name_norm IS NULL').get().c,
         entries: db.prepare('SELECT COUNT(*) c FROM entries').get().c,
         metaKeys: db.prepare('SELECT key FROM meta ORDER BY key').all().map((r) => r.key),
         sqliteVersion: db.prepare('SELECT sqlite_version() v').get().v,
       };
-      try {
-        db.exec(`INSERT INTO foods_fts(foods_fts) VALUES('integrity-check')`);
-        counts.ftsIntegrity = 'ok';
-      } catch (e) {
-        counts.ftsIntegrity = `FAIL: ${e.message}`;
+      if (WEB_ALL) counts.ftsIntegrity = 'n/a (no fts5)';
+      else {
+        try {
+          db.exec(`INSERT INTO foods_fts(foods_fts) VALUES('integrity-check')`);
+          db.exec(`INSERT INTO foods_tri(foods_tri) VALUES('integrity-check')`);
+          counts.ftsIntegrity = 'ok';
+        } catch (e) {
+          counts.ftsIntegrity = `FAIL: ${e.message}`;
+          process.exitCode = 1;
+        }
       }
     }
     rawDb().close();
@@ -176,9 +190,11 @@ async function benchColdStart() {
       medianMs: r2(median(breakdowns.map((b) => b.get(k)?.ms ?? 0))),
     }))
     .sort((a, b) => b.medianMs - a.medianMs);
-  const migration = await benchMigration();
+  const migration = WEB_ALL ? null : await benchMigration(false);
+  const migrationWeb = await benchMigration(true);
   result.coldStart = {
     migration,
+    migrationWeb,
     runs: RUNS,
     firstLaunchMs: { median: r1(median(cold)), max: r1(max(cold)), all: cold.map(r1) },
     warmLaunchMs: { median: r1(median(warm)), max: r1(max(warm)), all: warm.map(r1) },
@@ -194,40 +210,81 @@ async function benchColdStart() {
   table(breakdown, ['step', 'calls', 'medianMs']);
 }
 
-/** Existing install without the trigram index: next launch must create + backfill it. */
-async function benchMigration() {
-  const path = dbFile('migrate');
-  const a = await loadFresh(path);
+/** Pre-change (31cac3b-era) update triggers: fire on ANY update of foods. */
+const OLD_FTS_AU = `DROP TRIGGER IF EXISTS foods_au;
+CREATE TRIGGER foods_au AFTER UPDATE ON foods BEGIN
+  INSERT INTO foods_fts(foods_fts, rowid, id, name, brand) VALUES('delete', old.rowid, old.id, old.name, coalesce(old.brand,''));
+  INSERT INTO foods_fts(rowid, id, name, brand) VALUES (new.rowid, new.id, new.name, coalesce(new.brand,''));
+END;`;
+const OLD_TRI_AU = `DROP TRIGGER IF EXISTS foods_tri_au;
+CREATE TRIGGER foods_tri_au AFTER UPDATE ON foods BEGIN
+  INSERT INTO foods_tri(foods_tri, rowid, name, brand) VALUES('delete', old.rowid, old.name, coalesce(old.brand,''));
+  INSERT INTO foods_tri(rowid, name, brand) VALUES (new.rowid, new.name, coalesce(new.brand,''));
+END;`;
+
+const MISSING_WORDS_IDS = JSON.parse(readFileSync(join(ROOT, 'src/data/huMissingWordsSeed.json'), 'utf8')).items.map((i) => i.id);
+
+/**
+ * Existing install from before this change (no foods_tri, no name_norm column,
+ * no missing-words seed): the next launch must add + backfill everything.
+ * noFts=true runs the same check on a simulated web build (no fts5).
+ */
+async function benchMigration(noFts) {
+  const label = noFts ? 'web fallback' : 'native';
+  const path = dbFile(`migrate-${noFts ? 'web' : 'native'}`);
+  const a = await loadFresh(path, { noFts });
   await a.mod.getDb();
   const db0 = rawDb();
-  if (!db0.prepare(`SELECT 1 FROM sqlite_master WHERE name = 'foods_tri'`).get()) {
+  const hasCol = db0.prepare(`SELECT 1 FROM pragma_table_info('foods') WHERE name = 'name_norm'`).get();
+  if (!hasCol) {
     db0.close();
-    console.log('migration check: skipped (this code has no foods_tri index)');
+    console.log(`migration check (${label}): skipped (this code has no name_norm column)`);
     return { skipped: true };
   }
-  // roll back to the pre-trigram schema
+  // roll back to the 31cac3b-era schema/data
+  const ph = MISSING_WORDS_IDS.map(() => '?').join(',');
+  db0.prepare(`DELETE FROM foods WHERE id IN (${ph})`).run(...MISSING_WORDS_IDS);
   db0.exec(`DROP TRIGGER IF EXISTS foods_tri_ai; DROP TRIGGER IF EXISTS foods_tri_ad; DROP TRIGGER IF EXISTS foods_tri_au;
-            DROP TABLE IF EXISTS foods_tri; DELETE FROM meta WHERE key = 'foods_tri_v1';`);
+            DROP TABLE IF EXISTS foods_tri;
+            ALTER TABLE foods DROP COLUMN name_norm;
+            DELETE FROM meta WHERE key IN ('foods_tri_v1', 'foods_name_norm_v1', 'hu_missing_words_seed_v1');`);
+  if (!noFts) db0.exec(OLD_FTS_AU);
+  const before = db0.prepare('SELECT COUNT(*) c FROM foods').get().c;
   db0.close();
-  const b = await loadFresh(path);
+  const b = await loadFresh(path, { noFts });
   const t0 = now();
   await b.mod.getDb();
   const ms = now() - t0;
   const db = rawDb();
   const foods = db.prepare('SELECT COUNT(*) c FROM foods').get().c;
-  const tri = db.prepare(`SELECT COUNT(*) c FROM foods_tri WHERE foods_tri MATCH '"szalami"'`).get().c;
-  const meta = !!db.prepare(`SELECT 1 FROM meta WHERE key = 'foods_tri_v1'`).get();
-  let integrity = 'ok';
-  try {
-    db.exec(`INSERT INTO foods_tri(foods_tri) VALUES('integrity-check')`);
-  } catch (e) {
-    integrity = `FAIL: ${e.message}`;
+  const nullNorm = db.prepare('SELECT COUNT(*) c FROM foods WHERE name_norm IS NULL').get().c;
+  const sample = db.prepare(`SELECT name_norm FROM foods WHERE id = 'hu-pick-eredeti-teliszalami'`).get()?.name_norm;
+  const metaKeys = db.prepare(`SELECT key FROM meta WHERE key IN ('foods_tri_v1','foods_name_norm_v1','hu_missing_words_seed_v1')`).all().map((r) => r.key);
+  let tri = null;
+  let integrity = 'n/a (no fts5)';
+  if (!noFts) {
+    tri = db.prepare(`SELECT COUNT(*) c FROM foods_tri WHERE foods_tri MATCH '"szalami"'`).get().c;
+    try {
+      db.exec(`INSERT INTO foods_fts(foods_fts) VALUES('integrity-check'); INSERT INTO foods_tri(foods_tri) VALUES('integrity-check');`);
+      integrity = 'ok';
+    } catch (e) {
+      integrity = `FAIL: ${e.message}`;
+    }
   }
+  const api = await b.mod.createSqliteApi();
+  const turoRudi = (await api.searchLocal('turo rudi')).length;
+  const szalami = (await api.searchLocal('szalami')).length;
   db.close();
-  const pass = tri > 0 && meta && integrity === 'ok';
-  console.log(`migration check (old DB without foods_tri -> next launch): ${r1(ms)} ms, "szalami" trigram hits ${tri}, meta foods_tri_v1 ${meta}, integrity ${integrity} -> ${pass ? 'PASS' : 'FAIL'} (${foods} foods)`);
+  const pass =
+    nullNorm === 0 && sample === 'pick eredeti teliszalami pick' && foods === before + MISSING_WORDS_IDS.length &&
+    metaKeys.length === (noFts ? 2 : 3) && (noFts || (tri > 0 && integrity === 'ok')) && turoRudi > 0 && szalami > 0;
+  console.log(
+    `migration check (${label}; old DB: no name_norm/foods_tri/missing-words seed -> next launch): ${r1(ms)} ms, foods ${before} -> ${foods}, ` +
+      `name_norm NULL ${nullNorm}, sample "${sample}", meta [${metaKeys.join(',')}], trigram "szalami" ${tri ?? '-'}, integrity ${integrity}, ` +
+      `search "turo rudi" ${turoRudi} / "szalami" ${szalami} -> ${pass ? 'PASS' : 'FAIL'}`
+  );
   if (!pass) process.exitCode = 1;
-  return { pass, launchMs: r1(ms), triHitsSzalami: tri, meta, integrity };
+  return { pass, launchMs: r1(ms), foodsBefore: before, foodsAfter: foods, nameNormNull: nullNorm, sample, metaKeys, triHitsSzalami: tri, integrity, turoRudi, szalami };
 }
 
 /** On-disk bytes per table/index family (needs dbstat; null if unavailable). */
@@ -278,7 +335,7 @@ async function measureQueries(api, queries, repeats) {
     const topName = top ? `${top.brand && !top.name.includes(top.brand) ? top.brand + ' ' : ''}${top.name}` : '';
     let flagStr = '';
     if (!res.length) flagStr = '0 HITS';
-    else if (expect && !expect.test(fold(topName))) flagStr = 'BAD TOP';
+    else if (expect && !expect.test(fold(top.name))) flagStr = 'BAD TOP';
     rows.push({
       query: q,
       p50: r2(median(times)),
@@ -293,62 +350,102 @@ async function measureQueries(api, queries, repeats) {
   return rows;
 }
 
-async function benchSearch() {
-  h(`2. Local search latency (api.searchLocal = UI path, ${REPEATS} repeats/query)`);
-  globalThis.fetch = offlineFastFail; // 0-hit queries fall through to OFF; keep it instant here
-  const { mod } = await loadFresh(dbFile('search'));
+async function searchMode(noFts) {
+  const label = noFts ? 'web fallback (no fts5 -> name_norm LIKE)' : 'native (FTS5 prefix + trigram)';
+  const { mod } = await loadFresh(dbFile(`search-${noFts ? 'web' : 'native'}`), { noFts });
   const api = await mod.createSqliteApi();
   const rows = await measureQueries(api, QUERIES, REPEATS);
   const all = rows.flatMap((r) => r._times);
+  console.log(`\n--- ${label} ---`);
   table(rows, ['query', 'p50', 'p95', 'hits', 'top', 'src', 'flag']);
   const slow = [...rows].sort((a, b) => b.p50 - a.p50).slice(0, 5);
-  console.log(`overall: p50 ${r2(median(all))} ms, p95 ${r2(pct(all, 95))} ms, max ${r2(max(all))} ms over ${all.length} calls`);
+  console.log(`overall [${noFts ? 'web' : 'native'}]: p50 ${r2(median(all))} ms, p95 ${r2(pct(all, 95))} ms, max ${r2(max(all))} ms over ${all.length} calls`);
   console.log(`slowest p50: ${slow.map((r) => `${r.query} ${r.p50}ms`).join(', ')}`);
-  await benchProblemWords(api);
-  result.search = {
-    repeats: REPEATS,
-    overall: { p50: r2(median(all)), p95: r2(pct(all, 95)), max: r2(max(all)), n: all.length },
-    perQuery: rows.map(({ _times, ...r }) => r),
-    slowest5: slow.map((r) => ({ query: r.query, p50: r.p50, p95: r.p95 })),
-    zeroHit: rows.filter((r) => r.flag === '0 HITS').map((r) => r.query),
-    badTop: rows.filter((r) => r.flag === 'BAD TOP').map((r) => `${r.query} -> ${r.top}`),
+  return {
+    api,
+    summary: {
+      overall: { p50: r2(median(all)), p95: r2(pct(all, 95)), max: r2(max(all)), n: all.length },
+      perQuery: rows.map(({ _times, ...r }) => r),
+      slowest5: slow.map((r) => ({ query: r.query, p50: r.p50, p95: r.p95 })),
+      zeroHit: rows.filter((r) => r.flag === '0 HITS').map((r) => r.query),
+      badTop: rows.filter((r) => r.flag === 'BAD TOP').map((r) => `${r.query} -> ${r.top}`),
+    },
   };
-  rawDb().close();
 }
 
-// ---------- 2b. problem words (before/after) ----------
-const PROBLEM_WORDS = ['túró rudi', 'sonka', 'szalámi', 'pizza', 'kebab', 'tejföl', 'kolbász', 'csoki', 'keksz',
-  'krumpli', 'whopper', 'whoper', 'mell', 'kávé'];
+async function benchSearch() {
+  h(`2. Local search latency (api.searchLocal = UI path, ${REPEATS} repeats/query) — seed DB`);
+  globalThis.fetch = offlineFastFail; // 0-hit queries fall through to OFF; keep it instant here
+  const native = WEB_ALL ? null : await searchMode(false);
+  const nativeDb = native ? rawDb() : null;
+  const web = await searchMode(true);
+  const webDb = rawDb();
+  await benchProblemWords({ native: native?.api ?? null, web: web.api });
+  result.search = { repeats: REPEATS, native: native?.summary ?? null, web: web.summary };
+  nativeDb?.close();
+  webDb.close();
+}
+
+// ---------- 2b. problem words (before/after, native vs web fallback) ----------
+const PROBLEM_WORDS = ['túró rudi', 'sonka', 'szalámi', 'szalami', 'teliszalami', 'pizza', 'kebab', 'tejföl', 'kolbász',
+  'csoki', 'keksz', 'krumpli', 'kávé', 'whopper', 'whoper', 'mell'];
+/** Must have >= 1 hit in BOTH modes, else the bench exits 1. */
+const REQUIRED_WORDS = new Set(['túró rudi', 'sonka', 'pizza', 'kebab', 'tejföl', 'kolbász', 'csoki', 'keksz', 'kávé',
+  'szalami', 'teliszalami', 'szalámi', 'krumpli']);
 const hitLabel = (top) => (top ? `${top.brand && !top.name.includes(top.brand) ? top.brand + ' ' : ''}${top.name}` : '');
 
-async function benchProblemWords(api) {
+async function problemRows(api) {
+  if (!api) return null;
   const search = localSearch(api);
   const rows = [];
   for (const q of PROBLEM_WORDS) {
     const res = await search(q);
     rows.push({ query: q, hits: res.length, top: hitLabel(res[0]), top3: res.slice(0, 3).map(hitLabel) });
   }
+  return rows;
+}
+
+async function benchProblemWords({ native, web }) {
+  const nat = await problemRows(native);
+  const wb = await problemRows(web);
   let base = null;
-  if (WRITE_BASELINE) {
+  if (WRITE_BASELINE && nat) {
     const commit = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
-    writeFileSync(BASELINE_FILE, JSON.stringify({ commit, capturedAt: new Date().toISOString(), rows }, null, 2) + '\n');
+    writeFileSync(BASELINE_FILE, JSON.stringify({ commit, capturedAt: new Date().toISOString(), rows: nat }, null, 2) + '\n');
     console.log(`(baseline written to scripts/bench/baseline-problem-words.json @ ${commit})`);
   } else if (existsSync(BASELINE_FILE)) {
     base = JSON.parse(readFileSync(BASELINE_FILE, 'utf8'));
   }
   const bmap = new Map((base?.rows || []).map((r) => [r.query, r]));
-  console.log(`\n--- problem words (seed DB, searchLocal)${base ? ` — before = ${base.commit}` : ''} ---`);
-  table(
-    rows.map((r) => ({
-      query: r.query,
-      'hits before': bmap.get(r.query)?.hits ?? '-',
-      'top before': (bmap.get(r.query)?.top ?? '-').slice(0, 26),
-      hits: r.hits,
-      'top now': r.top.slice(0, 30),
-    })),
-    ['query', 'hits before', 'top before', 'hits', 'top now']
-  );
-  result.problemWords = { baselineCommit: base?.commit ?? null, before: base?.rows ?? null, now: rows };
+  const nmap = new Map((nat || []).map((r) => [r.query, r]));
+  const wmap = new Map((wb || []).map((r) => [r.query, r]));
+  const failures = [];
+  const rows = PROBLEM_WORDS.map((q) => {
+    const n = nmap.get(q);
+    const w = wmap.get(q);
+    const req = REQUIRED_WORDS.has(q);
+    const bad = req && ((nat && !n?.hits) || !w?.hits);
+    if (bad) failures.push(q);
+    return {
+      query: q,
+      req: req ? 'yes' : '',
+      [`before${base ? ' ' + base.commit : ''}`]: bmap.get(q)?.hits ?? '-',
+      native: n ? n.hits : '-',
+      'native top': (n?.top ?? '').slice(0, 34),
+      web: w?.hits ?? '-',
+      'web top': (w?.top ?? '').slice(0, 34),
+      check: bad ? 'FAIL 0 HITS' : '',
+    };
+  });
+  console.log(`\n--- problem words (seed DB, searchLocal): hits + top hit, native vs forced web fallback ---`);
+  table(rows, Object.keys(rows[0]));
+  if (failures.length) {
+    console.log(`REQUIRED problem words with 0 hits: ${failures.join(', ')} -> FAIL`);
+    process.exitCode = 1;
+  } else {
+    console.log(`REQUIRED problem words (${REQUIRED_WORDS.size}) all non-zero in ${nat ? 'native + web fallback' : 'web fallback'} -> PASS`);
+  }
+  result.problemWords = { baselineCommit: base?.commit ?? null, before: base?.rows ?? null, native: nat, web: wb, failures };
 }
 
 // ---------- 3/5. per-item logging data path ----------
@@ -404,13 +501,15 @@ const SYN_WORDS = ['Tej', 'Tejföl', 'Tejszín', 'Kenyér', 'Kifli', 'Sajt', 'Sa
   'Sonka', 'Szalámi', 'Keksz', 'Tészta', 'Rizs', 'Túró', 'Vaj', 'Csirkemell', 'Pizza', 'Üdítő'];
 const SYN_BRANDS = ['Tesco', 'Spar', 'Lidl', 'Aldi', 'Penny', 'Auchan', 'Pick', 'Sole', 'Mizo', 'Milka'];
 
-async function benchScale() {
+async function benchScale(noFts = WEB_ALL) {
   const FOODS = 5000;
   const DAYS = 730;
   const PER_DAY = 5;
-  h(`4. Scaled DB (SYNTHETIC: +${FOODS} OFF-like foods, ${DAYS * PER_DAY} entries = ${DAYS} days x ${PER_DAY})`);
+  const mode = noFts ? 'web' : 'native';
+  h(`4${noFts ? 'b' : ''}. Scaled DB [${noFts ? 'WEB FALLBACK: no fts5, name_norm LIKE' : 'NATIVE: FTS5 + trigram'}] (SYNTHETIC: +${FOODS} OFF-like foods, ${DAYS * PER_DAY} entries = ${DAYS} days x ${PER_DAY})`);
   globalThis.fetch = offlineFastFail;
-  const { mod } = await loadFresh(dbFile('scale'));
+  const scalePath = dbFile(`scale-${mode}`);
+  const { mod } = await loadFresh(scalePath, { noFts });
   const api = await mod.createSqliteApi();
   const db = rawDb();
   const tFill = now();
@@ -465,52 +564,91 @@ async function benchScale() {
     getLoggedDates135d: await timeFn(() => api.getLoggedDates('2025-03-01', '2025-07-14')),
     addEntry: await timeFn(() => api.addEntry({ date: '2026-10-08', meal: 'snack', food: { id: 'usda-banana', name: 'Banán', kcal100: 89, protein100: 1.1, fat100: 0.3, carbs100: 23, source: 'usda' }, grams: 120 })),
   });
-  // baseline WITHOUT an index on entries(food_id) (drop the app's one if present)
-  db.exec('DROP INDEX IF EXISTS idx_entries_food');
-  const before = await measureQueries(api, qs, rep);
-  const readsBefore = await readPaths();
-  const plan = db.prepare(`EXPLAIN QUERY PLAN SELECT food_id, COUNT(*) as c FROM entries WHERE food_id IN (?,?,?) GROUP BY food_id`).all('a', 'b', 'c').map((r) => r.detail);
+  const planSql = `EXPLAIN QUERY PLAN SELECT food_id, COUNT(*) as c FROM entries WHERE food_id IN (?,?,?) GROUP BY food_id`;
+  let before = null;
+  let readsBefore = null;
+  let plan = null;
+  if (!noFts) {
+    // baseline WITHOUT an index on entries(food_id) (drop the app's one if present)
+    db.exec('DROP INDEX IF EXISTS idx_entries_food');
+    before = await measureQueries(api, qs, rep);
+    readsBefore = await readPaths();
+    plan = db.prepare(planSql).all('a', 'b', 'c').map((r) => r.detail);
+  }
 
   // with the index on entries(food_id) (same DDL as src/data/db.ts)
   db.exec('CREATE INDEX IF NOT EXISTS idx_entries_food ON entries(food_id)');
   const after = await measureQueries(api, qs, rep);
   // REGRESSION: heavily-logged late custom food must appear for "tej" (history-first ranking)
   const tejHits = await localSearch(api)('tej');
-  const ftsTejMatches = db.prepare(`SELECT COUNT(*) c FROM foods_fts WHERE foods_fts MATCH '"tej"*'`).get().c;
+  const ftsTejMatches = noFts
+    ? db.prepare(`SELECT COUNT(*) c FROM foods WHERE name_norm LIKE '%tej%'`).get().c
+    : db.prepare(`SELECT COUNT(*) c FROM foods_fts WHERE foods_fts MATCH '"tej"*'`).get().c;
   const customRank = tejHits.findIndex((x) => x.id === 'custom-hazi-tej');
   const tejLogged = db.prepare(`SELECT COUNT(*) c FROM entries WHERE food_id = 'custom-hazi-tej'`).get().c;
-  const readsAfter = await readPaths();
-  const planAfter = db.prepare(`EXPLAIN QUERY PLAN SELECT food_id, COUNT(*) as c FROM entries WHERE food_id IN (?,?,?) GROUP BY food_id`).all('a', 'b', 'c').map((r) => r.detail);
+  const readsAfter = noFts ? null : await readPaths();
+  const planAfter = db.prepare(planSql).all('a', 'b', 'c').map((r) => r.detail);
 
-  const allB = before.flatMap((r) => r._times);
+  const allB = before ? before.flatMap((r) => r._times) : [];
   const allA = after.flatMap((r) => r._times);
-  const cmp = before.map((b, i) => ({
-    query: b.query, hits: b.hits, top: b.top, 'p50 noIdx': b.p50, 'p95 noIdx': b.p95, p50: after[i].p50, p95: after[i].p95,
-  }));
-  console.log('search ms: "noIdx" = without entries(food_id) index, p50/p95 = with it (app schema)');
-  table(cmp, ['query', 'hits', 'top', 'p50 noIdx', 'p95 noIdx', 'p50', 'p95']);
-  console.log('read paths (ms): without -> with entries(food_id) index:');
-  table(Object.keys(readsBefore).map((k) => ({ path: k, 'p50 noIdx': readsBefore[k].p50, 'p95 noIdx': readsBefore[k].p95, p50: readsAfter[k].p50, p95: readsAfter[k].p95 })), ['path', 'p50 noIdx', 'p95 noIdx', 'p50', 'p95']);
-  console.log(`history-boost lookup plan without index: ${plan.join(' | ')}  ->  with: ${planAfter.join(' | ')}`);
-  console.log(`scaled search overall: p50 ${r2(median(allA))} ms, p95 ${r2(pct(allA, 95))} ms (without index: p50 ${r2(median(allB))}, p95 ${r2(pct(allB, 95))})`);
+  if (before) {
+    const cmp = before.map((b, i) => ({
+      query: b.query, hits: b.hits, top: b.top, 'p50 noIdx': b.p50, 'p95 noIdx': b.p95, p50: after[i].p50, p95: after[i].p95,
+    }));
+    console.log('search ms: "noIdx" = without entries(food_id) index, p50/p95 = with it (app schema)');
+    table(cmp, ['query', 'hits', 'top', 'p50 noIdx', 'p95 noIdx', 'p50', 'p95']);
+    console.log('read paths (ms): without -> with entries(food_id) index:');
+    table(Object.keys(readsBefore).map((k) => ({ path: k, 'p50 noIdx': readsBefore[k].p50, 'p95 noIdx': readsBefore[k].p95, p50: readsAfter[k].p50, p95: readsAfter[k].p95 })), ['path', 'p50 noIdx', 'p95 noIdx', 'p50', 'p95']);
+    console.log(`history-boost lookup plan without index: ${plan.join(' | ')}  ->  with: ${planAfter.join(' | ')}`);
+  } else {
+    table(after, ['query', 'hits', 'top', 'p50', 'p95']);
+  }
+  console.log(`scaled search overall [${mode}]: p50 ${r2(median(allA))} ms, p95 ${r2(pct(allA, 95))} ms${before ? ` (without entries(food_id) index: p50 ${r2(median(allB))}, p95 ${r2(pct(allB, 95))})` : ''}`);
   const histOk = customRank >= 0;
-  console.log(`REGRESSION history-in-results: "tej"* FTS matches = ${ftsTejMatches}; "Házi tej" (custom, logged ${tejLogged}x) rank = ${histOk ? customRank + 1 : 'NOT RETURNED'} of ${tejHits.length} -> ${histOk ? 'PASS' : 'FAIL'}`);
+  console.log(`REGRESSION history-in-results [${mode}]: "tej" matches = ${ftsTejMatches}; "Házi tej" (custom, logged ${tejLogged}x) rank = ${histOk ? customRank + 1 : 'NOT RETURNED'} of ${tejHits.length} -> ${histOk ? 'PASS' : 'FAIL'}`);
   if (!histOk) process.exitCode = 1;
-  const sizes = indexSizes(db);
+  const sizes = noFts ? null : indexSizes(db);
   if (sizes) {
     console.log('on-disk size (KiB) of largest objects:');
     table(sizes.slice(0, 6).map((r) => ({ object: r.obj, KiB: Math.round(r.bytes / 1024) })), ['object', 'KiB']);
   }
-  result.scale = {
+
+  // big-DB migration: drop name_norm + its meta key, next launch must backfill all rows
+  db.exec(`ALTER TABLE foods DROP COLUMN name_norm; DELETE FROM meta WHERE key = 'foods_name_norm_v1';`);
+  if (!noFts) db.exec(`${OLD_FTS_AU}\n${OLD_TRI_AU}`); // as on a 31cac3b install
+  db.close();
+  const re = await loadFresh(scalePath, { noFts });
+  const tM = now();
+  await re.mod.getDb();
+  const migMs = now() - tM;
+  const rdb = rawDb();
+  const migRows = rdb.prepare('SELECT COUNT(*) c FROM foods').get().c;
+  const migNull = rdb.prepare('SELECT COUNT(*) c FROM foods WHERE name_norm IS NULL').get().c;
+  let migIntegrity = 'n/a (no fts5)';
+  if (!noFts) {
+    try {
+      rdb.exec(`INSERT INTO foods_fts(foods_fts) VALUES('integrity-check'); INSERT INTO foods_tri(foods_tri) VALUES('integrity-check');`);
+      migIntegrity = 'ok';
+    } catch (e) {
+      migIntegrity = `FAIL: ${e.message}`;
+    }
+  }
+  rdb.close();
+  const migOk = migNull === 0 && (noFts || migIntegrity === 'ok');
+  console.log(`name_norm backfill on big DB [${mode}]: ${r1(migMs)} ms for ${migRows} rows, NULL left ${migNull}, FTS integrity ${migIntegrity} -> ${migOk ? 'PASS' : 'FAIL'}`);
+  if (!migOk) process.exitCode = 1;
+
+  result.scale = result.scale || {};
+  result.scale[mode] = {
     synthetic: true, foodsAdded: FOODS + 1, entries: DAYS * PER_DAY,
     fillMs: { foods: r1(fillFoodsMs), entries: r1(fillEntriesMs) },
-    search: { p50NoFoodIdIndex: r2(median(allB)), p95NoFoodIdIndex: r2(pct(allB, 95)), p50: r2(median(allA)), p95: r2(pct(allA, 95)) },
-    perQuery: cmp, readPathsNoFoodIdIndex: readsBefore, readPaths: readsAfter,
+    search: { p50NoFoodIdIndex: before ? r2(median(allB)) : null, p95NoFoodIdIndex: before ? r2(pct(allB, 95)) : null, p50: r2(median(allA)), p95: r2(pct(allA, 95)) },
+    perQuery: after.map(({ _times, ...r }) => r), readPathsNoFoodIdIndex: readsBefore, readPaths: readsAfter,
+    nameNormBackfill: { pass: migOk, ms: r1(migMs), rows: migRows, nullLeft: migNull, integrity: migIntegrity },
     historyLookupPlanNoIndex: plan, historyLookupPlan: planAfter,
     sizesBytes: sizes,
     historyRegression: { pass: histOk, ftsMatchesTej: ftsTejMatches, haziTejLogged: tejLogged, haziTejRank: histOk ? customRank + 1 : null, results: tejHits.length },
   };
-  db.close();
 }
 
 // ---------- 5. OFF with no network ----------
@@ -554,11 +692,12 @@ async function benchOff() {
   const api = await mod.createSqliteApi();
   await run('api.search("csirkemell") local hit, OFF hanging', hangingFetch, () => api.search('csirkemell').then((r) => r.length));
   await run('api.search("tojás") local hit, OFF hanging', hangingFetch, () => api.search('tojás').then((r) => r.length));
-  await run('api.search("pizza") 0 local hits, OFF hanging', hangingFetch, () => api.search('pizza').then((r) => r.length));
+  // "lángos": a real HU word with no local seed row (pizza etc. are seeded now)
+  await run('api.search("lángos") 0 local hits, OFF hanging', hangingFetch, () => api.search('lángos').then((r) => r.length));
   if (api.searchLocal) {
     await run('api.searchLocal("csirkemell") [UI path], OFF hanging', hangingFetch, () => api.searchLocal('csirkemell').then((r) => r.length));
-    await run('api.searchLocal("pizza") [UI path], OFF hanging', hangingFetch, () => api.searchLocal('pizza').then((r) => r.length));
-    await run('api.searchRemote("pizza") [background], OFF hanging', hangingFetch, () => api.searchRemote('pizza').then((r) => r.length));
+    await run('api.searchLocal("lángos") [UI path], OFF hanging', hangingFetch, () => api.searchLocal('lángos').then((r) => r.length));
+    await run('api.searchRemote("lángos") [background], OFF hanging', hangingFetch, () => api.searchRemote('lángos').then((r) => r.length));
   }
   await run('api.lookupEan(seeded Pick EAN), OFF hanging', hangingFetch, () => api.lookupEan('5998003124043').then((f) => f?.name ?? null));
   await run('api.lookupEan(unknown EAN), OFF hanging', hangingFetch, () => api.lookupEan('5990000000002').then((f) => f?.name ?? null));
@@ -593,7 +732,10 @@ async function main() {
   await benchColdStart();
   await benchSearch();
   await benchLogging();
-  if (DO_SCALE) await benchScale();
+  if (DO_SCALE) {
+    if (!WEB_ALL) await benchScale(false);
+    await benchScale(true);
+  }
   if (DO_OFF) await benchOff();
   if (DO_DOCTOR) benchDoctor();
   if (JSON_OUT) {
