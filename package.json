@@ -17,6 +17,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "better-sqlite3": "~12.9.0",
+    "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
     "eslint-config-expo": "~57.0.2",
     "typescript": "~6.0.3"
@@ -28,7 +30,9 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "export:web": "expo export -p web && touch dist/.nojekyll",
-    "deploy:pages": "bash scripts/deploy-pages.sh"
+    "deploy:pages": "bash scripts/deploy-pages.sh",
+    "bench": "node scripts/bench.mjs",
+    "bench:quick": "node scripts/bench.mjs --quick"
   },
   "private": true
 }
