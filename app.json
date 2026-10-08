@@ -9,7 +9,7 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSCameraUsageDescription": "Fastcal vonalk\u00f3d olvas\u00e1s\u00e1hoz sz\u00fcks\u00e9ges a kamera."
+        "NSCameraUsageDescription": "Fastcal vonalkód olvasásához szükséges a kamera."
       }
     },
     "android": {
@@ -37,10 +37,13 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Fastcal vonalk\u00f3d olvas\u00e1s\u00e1hoz sz\u00fcks\u00e9ges a kamera.",
+          "cameraPermission": "Fastcal vonalkód olvasásához szükséges a kamera.",
           "recordAudioAndroid": false
         }
       ]
-    ]
+    ],
+    "experiments": {
+      "baseUrl": "/fastcal"
+    }
   }
 }
